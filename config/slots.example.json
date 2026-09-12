@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "meta": {
+    "displayName": "Example"
+  },
+  "slots": [
+    {
+      "id": "1",
+      "name": "Calculator",
+      "description": "Launch an app — Windows Calculator",
+      "path": "calc.exe"
+    },
+    {
+      "id": "2",
+      "name": "Example.com",
+      "description": "Open a website — swap later for DialKey docs URL",
+      "path": "https://example.com"
+    },
+    {
+      "id": "3",
+      "name": "Hello BAT",
+      "description": "Run a .bat — samples/hello.bat",
+      "path": "samples/hello.bat"
+    },
+    {
+      "id": "4",
+      "name": "Samples folder",
+      "description": "Open a folder — samples/ next to the exe (shell association)",
+      "path": "samples"
+    },
+    {
+      "id": "5",
+      "name": "Demo chain",
+      "description": "Advanced — launch slots 1 and 3 together",
+      "path": "chain:1,3"
+    },
+    {
+      "id": "6",
+      "name": "Date-token report",
+      "description": "Date tokens — {yyyy}/{yyyyMM} folders; missing path opens deepest existing ancestor",
+      "path": "D:\\work\\{yyyy}\\{yyyyMM}\\report_{yyyyMM}.xlsx"
+    }
+  ]
+}

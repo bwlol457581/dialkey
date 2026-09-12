@@ -1,0 +1,50 @@
+---
+description: n=10 ready + footprint in spec §10 before a version-bump PR
+alwaysApply: true
+---
+
+# DialKey — performance gate
+
+**Rule Rev.1** — 2026-09-13 (DialKey)
+
+**Before opening a version-bump PR** (or adding `ship` to the chat title),
+measure and **append rows to `docs/spec.md` §10**. Do not skip because the
+change “looks cheap.” Docs-only work with no rev bump does not need this gate.
+
+## What to run
+
+Release build. Tray only (no Settings / typing UI). Isolated work dir with
+minimal `settings.json` **and** `slots.json` (so first-run Settings does not
+open).
+
+```powershell
+.\scripts\measure-startup.ps1 -ExePath <isolated\dialkey.exe> -WorkDir <same folder> -Runs 10 -Footprint
+```
+
+Copy the release exe into a writable folder first (`dist/stage` can auto-open
+Settings). **n = 10** (warmup 1, not counted). Record **mean**, **unbiased SD**
+\(\hat\sigma=\sqrt{\mathrm{SS}/(n-1)}\), min–max, and the **raw sample list**.
+
+| Metric | Spec table |
+|---|---|
+| Startup → log `ready` (ms) | §10 startup |
+| Idle **Private Bytes** (canonical) + Working Set | §10 resident footprint |
+
+Keep old rows. Goal: Private stays in the low single-digit MB.
+
+## Comparing two builds
+
+Same n=10, α = 0.05. `scripts/measure-stats.ps1`. Print:
+
+1. **Normality** — Shapiro–Wilk W vs Wcrit(0.05) (n=5..12)
+2. **Equal variance** — two-sided F-test
+3. **Mean difference** — Student t if F not rejected, otherwise Welch
+
+If Shapiro–Wilk rejects (often Private Bytes at 0.01 MB rounding), still print
+F/t but do not treat p as a strong claim.
+
+Focus-path PRs also run `scripts/measure-compare-n10.ps1`.
+
+## Order
+
+Implement → spec behaviour → **§10 n=10 + σ̂** → PR → chat title `Rev.{version} ship`.

@@ -1,0 +1,61 @@
+---
+description: DialKey architecture, invariants, and coding conventions
+globs: ["**/*.rs", "**/*.toml", "**/*.json"]
+alwaysApply: true
+---
+
+# DialKey — product rules
+
+**Rule Rev.1** — 2026-09-13 (DialKey)
+
+Public spec: `docs/spec.md` (**English**). If this file and the spec disagree,
+the spec wins — say so rather than guessing.
+Author notes: `.cursor/rules/private_spec.md` (Japanese OK). See common
+`docs-language.mdc`, `docs-layers.mdc`, `spec-public.mdc`.
+
+UI copy goes through `crate::core::i18n` (`t` / `tf` / `keys::*`). English is
+embedded; packs live in `lang/<code>.toml` next to the exe. Only the active
+pack overlay is resident; per-key fallback to English. Minimal TOML subset
+parser. Translation work is `lang/*.toml` only — not Win32 layout coordinates.
+
+## Invariants
+
+1. **DialKey's job ends at launch.** No dropped files, argument expansion, or
+   extension dispatch — the scripts already do that.
+2. **The typing window never takes focus.** `WS_EX_NOACTIVATE` + `TOPMOST`.
+   Input arrives via the keyboard hook, not via focus.
+3. **The keyboard hook lives only while the window is shown.** Uninstall on
+   close, on error, and on panic. RAII — never a bare install/uninstall pair.
+4. **Never overwrite a broken config file.** Report and continue with an empty
+   slot set so the user can repair it by hand.
+5. **Writes are atomic.** Temp file, flush, rename.
+6. **Slot IDs are strings.** `"01"` and `"1"` are different. Accept integers on
+   read and convert; sort naturally (2 before 10).
+7. **Never log keystroke contents.** Failures only.
+8. **Do not wait on launched processes.** Fire and release.
+
+## Performance
+
+- Resident footprint is a feature. No timer loops; fully event-driven.
+- `WH_MOUSE_LL` — return immediately unless it is the configured button.
+- Do no real work inside a hook. Post a message and handle it elsewhere.
+- Build the window on demand and destroy it on close; no resident GPU context.
+- Version-bump PRs: n=10 in spec §10 (`perf-gate.mdc`).
+
+## Architecture
+
+- `src/core/` is OS-independent and must not reference Windows APIs.
+- All OS calls go behind the traits in `src/platform/` (`platform/mod.rs`).
+- Windows is the only implementation; keep the shape portable (CGEventTap /
+  NSStatusItem / LaunchAgent).
+
+## Testing
+
+- Sequence state machine, search, config migration, and path resolution must
+  be unit-testable without OS hooks.
+- Hook behaviour cannot be tested under WSL — say so rather than a silent pass.
+
+## Git (DialKey)
+
+- Never commit `slots.json` — personal paths. Only `slots.example.json`.
+- Do not edit **privateConfig** or personal runtime JSON (`private-config.mdc`).

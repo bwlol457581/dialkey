@@ -1,0 +1,27 @@
+---
+description: Public artifacts English; author-only notes may be Japanese
+alwaysApply: true
+---
+
+# Language — public English / private Japanese
+
+**Rule Rev.3** — 2026-09-13 (common)
+
+**Precedence:** DialKey `.cursor/rules` is the latest. The older essay
+`project_standards/app_spec_rules.md` does not override it. Copy common
+files DialKey → this kit → other projects. A product overlay in the same
+file is for that project. Current product behaviour follows the public spec.
+
+| Surface | Language |
+|---|---|
+| Code, identifiers, comments | English |
+| Public spec, README, docs site, in-app Help, CLI `--help` | **English** |
+| Committed `.cursor/rules/*.mdc` (this kit) | **English** |
+| Author-only notes (`private_spec.md`, other `private_*`) | **Japanese OK** |
+| Chat / design discussion | Japanese OK |
+| UI strings | English built-in; optional `lang/<code>.toml` overlays |
+| User data (slot names, paths) | Any language; do not translate |
+
+Do not write the public spec in Japanese. Do not copy Japanese author notes into Help, the docs site, or the public spec.
+
+When a public paragraph sounds like a memoir, tax note, or discarded-idea diary, move it to `private_*` and leave an English fact (or delete it).

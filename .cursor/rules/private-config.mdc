@@ -1,0 +1,28 @@
+---
+description: Do not edit privateConfig or personal config when changing the program
+alwaysApply: true
+---
+
+# privateConfig — do not edit on program changes
+
+**Rule Rev.1** — 2026-09-13 (DialKey)
+
+When changing DialKey **program** code, spec, or shared docs, **do not edit
+privateConfig** or other personal runtime config. Measure in an isolated
+folder (`_measure/`, `dist/`), not the user's running install.
+
+## Do not touch
+
+- Any path or folder named **`privateConfig`**
+- Other `.cursor/rules/private_*` (gitignored), except **`private_spec.md`**
+  when the user asked or when moving author-only notes out of `docs/spec.md`
+- Personal slot books (`slots.json`, `slots.*.json` except `slots.example.json`)
+- A live install's `settings/` (for example `Now on running\...\settings\`)
+
+## Do edit
+
+- `config/settings.json`, `config/slots.example.json`, `lang/*.toml`
+- Public spec / docs site / `.cursor/rules/` that are **not** `private_*`
+- `.cursor/rules/private_spec.md` only for author-only notes (never commit)
+
+Personal JSON is the user's machine, not the product. Never commit it.
