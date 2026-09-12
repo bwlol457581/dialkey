@@ -1,0 +1,68 @@
+---
+description: How to write an app spec — minimum vs full set
+alwaysApply: true
+---
+
+# Spec authoring
+
+**Rule Rev.4** — 2026-09-13 (common)
+
+Latest copy lives in **DialKey** `.cursor/rules`. The Japanese essay
+`project_standards/app_spec_rules.md` is older — do not use it to override
+DialKey. If they disagree, follow DialKey and fix the essay.
+
+Write the spec **before** coding. Keep it a living document.
+Public spec text is **English** (`docs-language.mdc`).
+Start a new project from the **minimum set**; add full-set items as
+complexity grows (UI, persistence, external APIs).
+
+## Minimum set (small personal tools)
+
+1. Feature list
+2. Screen-flow diagram (if there is a UI)
+3. Table / persistence definitions (if data is stored)
+
+## Full set — add what the project actually needs
+
+**Upstream:** purpose, users, glossary, constraints, **language/stack choice
+with reasons**, architecture pattern when extension is expected.
+
+**Functions:** features with priority, use cases, process flows, screen
+design, state machines.
+
+**Data:** ER / table definitions, data flow.
+
+**Interfaces:** API and external-system contracts.
+
+**Non-functional:** performance, security, operations, error handling.
+
+**Other:** directory / architecture diagram, test spec, revision history.
+
+Need/skip of full-set items is judged per project (UI? persistence? external
+APIs?). When a repeatable rule appears, add it here and bump this Rev.
+
+## Stack choice (when others may run the binary)
+
+Prefer a single artifact, static types for strangers, licences that fit the
+project licence, and memory-safe languages in compliance-sensitive domains.
+Python is fine for private/small tools; it is a weaker default for unknown
+machines. For an OSS **server / core** app that others may run, treat a
+typed language that packs to a single artifact (**Rust**) as
+the default candidate. Do not force a three-layer core/overlay/tenant split
+on a tool with no expected variants.
+
+## Architecture when variants will grow
+
+If the unit of difference is already clear (locale, tenant, customer):
+
+1. **Core** — no named-target branches; interprets declarative config only
+2. **Overlay** — per-target packages; do not edit core
+3. **Tenant** — further overrides of overlay data only
+
+Add a backward-compatible core extension only when the existing DSL cannot
+express the case.
+
+## Project docs
+
+Keep project documents in one place (e.g. `docs/` or `/areas/`) with a
+revision history. Do not leave a spec as a one-shot draft.

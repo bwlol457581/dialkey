@@ -1,0 +1,40 @@
+---
+description: Chat titles — Rev.{version} then Rev.{version} ship when done
+alwaysApply: true
+---
+
+# DialKey — chat titles
+
+**Rule Rev.1** — 2026-09-13 (DialKey)
+
+**Ship** means **implemented in the current build**. Do not wait for a GitHub
+Release or VirusTotal.
+
+## Default
+
+Keep the title in the **same shape as the first attachment / opening name**.
+Do not invent slogans. Typical form: `Rev.{version}` e.g. `Rev.1.0.0`
+
+## When work is done
+
+After **all** of:
+
+1. Implementation is ready to PR,
+2. The **spec** is updated (Help / docs site only if the layers require it), and
+3. **Performance gate** — n=10 mean + unbiased SD in spec §10 (`perf-gate.mdc`)
+
+**then** open the PR. After the PR is pushed, rename the chat to
+`Rev.{version} ship` (e.g. `Rev.1.0.0 ship`).
+
+Use `rename_chat`. This file counts as an explicit rename request for that
+step. If the user already set a different title, do not override it.
+
+Docs-only / no version bump: do **not** add `ship`, and do not open a PR
+unless the user asks.
+
+## Do not
+
+- Rename on every turn, or while work is still in progress
+- Put `ship` in the title before the PR, spec, **and** §10 n=10 catch up
+- Open a PR before the performance gate (unless the user skips it)
+- Use `Ship` / `plan` as a slogan for unfinished work

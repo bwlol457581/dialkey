@@ -1,0 +1,63 @@
+---
+description: Public spec vs author-only notes — do not merge the two
+alwaysApply: true
+---
+
+# Public spec vs author-only notes
+
+**Rule Rev.2** — 2026-09-13 (common)
+
+The public specification is **English**. Author-only notes may be **Japanese**.
+Do not merge the two.
+
+## Public spec
+
+- Current behaviour, invariants, schemas, Help checklist
+- Measured performance (when the project has a gate)
+- Factual product decisions (licence, “we do not sell”)
+- Privacy policy and published scan **results** (not vendor-process essays)
+- No Plan table, Ship memos, or future-vision essays
+- Bug-fix behaviour stays public when it ships
+
+Tone: professional and specific. No first-person asides.
+
+## Author-only (`private_spec.md` and other `private_*`)
+
+- Plan essays, QA checklists, leftover Ship tables
+- Motivation, location, tax / bank / funding eligibility
+- Discarded-idea diaries and “why I chose this”
+- Competitor research and price tables
+- Maintainer release / handoff checklists
+- Pre-public version history (DialKey: anything before **1.0.0**). From the
+  first public edition onward, keep per-version **product** facts in the
+  public spec. Do not list earlier private builds there
+
+When asked to record such a note, write **only** the private file.
+When a public paragraph sounds like the list above, move it and leave a fact.
+
+## Do not
+
+- Commit `private_*` or copy its wording into Help / the docs site / the public spec
+- Put shipped behaviour only in the private file — product facts stay public
+
+---
+
+## DialKey overlay
+
+**Overlay Rev.2** — 2026-09-13
+
+Public surfaces (`docs/spec.md`, README, docs site, Help, committed rules)
+start at **1.0.0**. Do not add `0.x` version tables, ship memos, or
+`docs/Old/`.
+
+| Public | Not public |
+|---|---|
+| Behaviour §1–13, §10 n=10 for **1.0.0+**, MIT, VT **results**, one language-pack paragraph | `.cursor/rules/private_*` (Japanese OK): `private_spec.md`, `private_RELEASE.md`, `private_HANDOFF.md`, `private_stamp.md`, `private_spec_v1.9.md`, `private_appendix-changelog-phases-archive.md` |
+| No Stream Deck / QMK / price table | Competitor tables |
+| No pre-1.0 changelog | Local `docs/Old/` (gitignored) — same class as `private_*` |
+
+Git **history** on a public repo still shows old commit messages (folder
+last-commit on GitHub). That is not the product spec. Do not rewrite
+history unless the user asks.
+
+Do not edit `private_*` except `private_spec.md` when moving author notes out of the public spec.

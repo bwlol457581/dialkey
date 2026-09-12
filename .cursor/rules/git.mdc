@@ -1,0 +1,15 @@
+---
+description: Conventional Commits; do not commit personal or secret files
+alwaysApply: true
+---
+
+# Git
+
+**Rule Rev.1** — 2026-09-13 (common)
+
+- Conventional Commits: `feat:`, `fix:`, `docs:`, `refactor:`, `test:`, `chore:`
+- Commit only when the user asks
+- Do not commit personal runtime config, slot books, secrets, or `private_*`
+- Do not edit a live install’s settings when changing the program; measure in
+  an isolated folder
+- Author-only Cursor files stay gitignored (`.cursor/rules/private_*`)

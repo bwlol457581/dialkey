@@ -1,0 +1,15 @@
+# GitHub Pages (publish from /docs)
+title: DialKey
+description: A software macropad. Turn any cheap numpad into a left-hand command pad.
+url: https://bwlol457581.github.io
+baseurl: /dialkey
+theme: jekyll-theme-cayman
+plugins:
+  - jekyll-relative-links
+relative_links:
+  enabled: true
+  collections: true
+
+# Keep the full specification out of the site nav; link from index.
+exclude:
+  - spec.md

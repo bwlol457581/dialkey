@@ -1,0 +1,60 @@
+---
+description: Spec contains Help — documentation layers
+alwaysApply: true
+---
+
+# Documentation layers
+
+**Rule Rev.1** — 2026-09-13 (common)
+
+**Mental model: the spec contains Help** (spec ⊃ Help).
+The public specification is the source of truth. Help and the docs site are
+**projections** for end users — not a second source of truth, and not a dump
+of the whole spec.
+
+| Layer | Audience | Role |
+|---|---|---|
+| Public spec (`docs/spec.md` or project equivalent) | Public | Current behaviour, invariants, schemas, *what Help should cover* |
+| Author notes (`private_spec.md`, gitignored) | Author | Motives, location, discarded ideas. Not Help, not the docs site |
+| In-app Help | End users | Short how-to + docs-site pointer + version. No design rationale |
+| Docs site | End users / installers | Install, FAQ, troubleshooting — what a public release needs |
+
+CLI `--help` / `--version` are English. They are not language-pack UI copy.
+
+## Agent rules
+
+1. When adding user-facing guidance, ask: **Help**, **docs site**, **public spec**, or **author notes**?
+2. Do not put “why we decided…” essays into Help strings.
+3. If the spec says “document X for users”, put X on the **docs site / FAQ**, unless it is the short how-to that belongs in Help.
+4. If Help and the spec disagree, fix Help to match the spec’s intended user projection, then sync the docs site.
+
+A project may add a Help-budget overlay (what is / is not in Help) next to this file.
+
+---
+
+## DialKey overlay — Help budget
+
+**Overlay Rev.1** — 2026-09-13
+
+DialKey layers: `docs/spec.md` (public, English) / `.cursor/rules/private_spec.md`
+(Japanese OK) / tray About / `docs/*.md` → GitHub Pages.
+
+### In Help
+
+- What DialKey is (one line)
+- How to open (default **X2**) / instant digit vs `+` then Enter / first-line `+` cue / Search / cancel
+- Where to register tools (Settings → Slots)
+- Switch books: mode button (X1) then 0–9, or tray → Mode
+- Docs-site link (`docsUrl`), version, optional language-pack line
+- Load overwrite warning only (copies into `settings/`; does not keep using the backup)
+- One line: some numpads wake slowly — watch the typing window that keys registered
+
+### Not in Help
+
+- Architecture, performance rationale, Plan / future-vision
+- Exclusive fullscreen, laptop without numpad `+`, which wireless pad to buy
+- Backup / Load **steps**, Settings → Mode / Keys / Triggers (Advanced)
+- Maintainer release steps, VirusTotal, packaging
+
+The public docs site is install / FAQ / slots / configuration / privacy only.
+Help string IDs: `HELP_*` / `help_about_*` in `lang/*.toml`.
