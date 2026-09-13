@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "triggers": [
+    { "type": "mouse",  "button": "x2", "suppress": true },
+    { "type": "hotkey", "key": "" },
+    { "type": "tray" }
+  ],
+  "keys": {
+    "start":     "VK_ADD",
+    "confirm":   "VK_RETURN",
+    "cancel":    "VK_ESCAPE",
+    "search":    "VK_OEM_5",
+    "openWorkdir": "VK_CONTROL",
+    "digitBack": "VK_RIGHT",
+    "startLabel": "+",
+    "confirmLabel": "Ent",
+    "cancelLabel": "ESC",
+    "searchLabel": "\\",
+    "openWorkdirLabel": "Ctr",
+    "digitBackLabel": "→"
+  },
+  "instant": {
+    "0": false, "1": true, "2": false, "3": false, "4": false,
+    "5": false, "6": false, "7": false, "8": false, "9": false
+  },
+  "search": {
+    "mode": "substring",
+    "caseSensitive": false
+  },
+  "ui": {
+    "locale": ""
+  },
+  "timeoutSec": 30,
+  "maxDigits": 10,
+  "feedbackMs": 500,
+  "logLevel": "info",
+  "docsUrl": "https://bwlol457581.github.io/dialkey/",
+  "autostart": false,
+  "slotsFile": "slots.json",
+  "modeSwitch": {
+    "mouseButton": "x1",
+    "suppress": true,
+    "chordTimeoutMs": 2000,
+    "keys": {
+      "0": "slots.json"
+    }
+  }
+}
