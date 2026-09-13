@@ -1309,6 +1309,7 @@ The release zip is checked on VirusTotal before publication. Results are also po
 | Version | Target | Detections | Notes |
 |---|---|---|---|
 | **1.0.0** | `DialKey-1.0.0-windows-x64.zip` SHA256 `d64b5fc53416105046d0186a1dc6de93381dd5315964b735c34f2ea2e2c9838d` | **1/67** | Bkav Pro only (`W32.Malware.B950DC92`). Major engines clean. [Report](https://www.virustotal.com/gui/file/d64b5fc53416105046d0186a1dc6de93381dd5315964b735c34f2ea2e2c9838d) |
+| **1.0.1** | `DialKey-1.0.1-windows-x64.zip` SHA256 `e1e1ec30ef0c30ddeef06a42f2fa34a632a411fde642dfe44eff23236ace3ef0` | **1/67** | Bkav Pro only (`W32.Malware.6496BAD0`). Major engines clean. Same heuristic pattern as 1.0.0. [Report](https://www.virustotal.com/gui/file/e1e1ec30ef0c30ddeef06a42f2fa34a632a411fde642dfe44eff23236ace3ef0) |
 
 ### Privacy policy
 
