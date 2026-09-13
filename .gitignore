@@ -1,0 +1,21 @@
+# Build
+/target/
+/dist/
+/_measure/
+/_wt_0131/
+
+# Personal configuration — never commit
+/slots.json
+/config/slots.json
+/logs/
+
+# Cursor agent instructions and author notes — local only
+.cursor/
+
+# Pre-1.0 archives — not public (author copies live in private_*)
+/docs/Old/
+
+# OS
+Thumbs.db
+desktop.ini
+.DS_Store

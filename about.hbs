@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Third-party licenses — DialKey</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 52rem; margin: 2rem auto; padding: 0 1rem; line-height: 1.5; }
+    h1, h2 { line-height: 1.2; }
+    pre { white-space: pre-wrap; background: #f4f4f4; padding: 1rem; overflow-x: auto; }
+    .crate { margin-bottom: 2.5rem; border-top: 1px solid #ddd; padding-top: 1rem; }
+  </style>
+</head>
+<body>
+  <h1>Third-party licenses</h1>
+  <p>
+    DialKey is MIT-licensed. The following notices apply to third-party crates
+    linked into this binary. Generated with <code>cargo-about</code>.
+  </p>
+
+  <ul>
+  {{#each overview}}
+    <li><a href="#{{id}}">{{name}}</a> ({{count}})</li>
+  {{/each}}
+  </ul>
+
+  {{#each licenses}}
+  <section class="crate" id="{{id}}">
+    <h2>{{name}}</h2>
+    <h3>Used by</h3>
+    <ul>
+    {{#each used_by}}
+      <li>{{crate.name}} {{crate.version}}</li>
+    {{/each}}
+    </ul>
+    <h3>License text</h3>
+    <pre>{{text}}</pre>
+  </section>
+  {{/each}}
+</body>
+</html>
