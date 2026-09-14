@@ -3,6 +3,8 @@
 /dist/
 /_measure/
 /_wt_0131/
+/_wt_101/
+/_wt_102/
 
 # Personal configuration — never commit
 /slots.json

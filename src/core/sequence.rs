@@ -19,6 +19,8 @@ pub enum SequenceEvent {
     OpenWorkdir,
     Cancel,
     Search,
+    /// Open Settings (closes the typing window).
+    Settings,
     /// Delete last buffer digit; empty multi → Idle; Idle → close typing window.
     DigitBack,
 }
@@ -33,6 +35,8 @@ pub enum Action {
     Close,
     /// Close typing window and open Search.
     OpenSearch,
+    /// Close typing window and open Settings.
+    OpenSettings,
     /// Buffer/UI changed; redraw candidates.
     Redraw,
     /// No-op (ignored input).
@@ -76,6 +80,7 @@ impl SequenceState {
         match event {
             SequenceEvent::Cancel => Action::Close,
             SequenceEvent::Search => Action::OpenSearch,
+            SequenceEvent::Settings => Action::OpenSettings,
             SequenceEvent::Start => match self.mode {
                 Mode::Idle => {
                     self.mode = Mode::MultiDigit;
@@ -249,5 +254,14 @@ mod tests {
         assert_eq!(s.handle(SequenceEvent::DigitBack), Action::Redraw);
         assert_eq!(s.mode(), Mode::Idle);
         assert_eq!(s.handle(SequenceEvent::DigitBack), Action::Close);
+    }
+
+    #[test]
+    fn settings_closes_from_any_mode() {
+        let mut s = SequenceState::new(10, HashMap::new());
+        assert_eq!(s.handle(SequenceEvent::Settings), Action::OpenSettings);
+        s.handle(SequenceEvent::Start);
+        s.handle(SequenceEvent::Digit(1));
+        assert_eq!(s.handle(SequenceEvent::Settings), Action::OpenSettings);
     }
 }

@@ -9,12 +9,12 @@ use std::sync::{Mutex, OnceLock};
 use tracing::{error, info};
 use windows::core::{w, PCWSTR};
 use windows::Win32::Foundation::{
-    GetLastError, COLORREF, ERROR_CLASS_ALREADY_EXISTS, HWND, LPARAM, LRESULT, POINT, RECT, SIZE,
+    GetLastError, BOOL, COLORREF, ERROR_CLASS_ALREADY_EXISTS, HWND, LPARAM, LRESULT, POINT, RECT, SIZE,
     WPARAM,
 };
 use windows::Win32::Graphics::Gdi::{
     FillRect, GetDC, GetMonitorInfoW, GetStockObject, GetSysColorBrush, GetTextExtentPoint32W,
-    MonitorFromPoint, MonitorFromWindow, RedrawWindow, ReleaseDC, SelectObject, SetBkColor,
+    MonitorFromPoint, MonitorFromWindow, RedrawWindow, ReleaseDC, ScreenToClient, SelectObject, SetBkColor,
     SetTextColor, COLOR_WINDOW, DEFAULT_GUI_FONT, HBRUSH, HFONT, MONITORINFO,
     MONITOR_DEFAULTTONEAREST, RDW_ALLCHILDREN, RDW_ERASE, RDW_FRAME, RDW_INVALIDATE, RDW_UPDATENOW,
     WHITE_BRUSH,
@@ -26,24 +26,26 @@ use windows::Win32::UI::HiDpi::{
 use windows::Win32::UI::Input::KeyboardAndMouse::{
     EnableWindow, GetFocus, IsWindowEnabled, SetFocus,
 };
+use windows::Win32::UI::Controls::{SetScrollInfo, ShowScrollBar};
 use windows::Win32::UI::Shell::ShellExecuteW;
 use windows::Win32::UI::WindowsAndMessaging::{
     CallNextHookEx, CallWindowProcW, CreateWindowExW, DefWindowProcW, DestroyWindow,
     DispatchMessageW, GetClassNameW, GetClientRect, GetCursorPos, GetMessageW, GetParent,
-    GetWindowLongPtrW, GetWindowTextLengthW, GetWindowTextW, IsDialogMessageW, LoadCursorW,
+    GetWindowLongPtrW, GetWindowRect, GetWindowTextLengthW, GetWindowTextW, IsDialogMessageW, LoadCursorW,
     MessageBoxW, PostMessageW, RegisterClassExW, SendMessageW, SetForegroundWindow, SetParent,
-    SetWindowLongPtrW, SetWindowPos, SetWindowTextW, SetWindowsHookExW, ShowWindow,
-    TranslateMessage, UnhookWindowsHookEx, GWLP_USERDATA, GWLP_WNDPROC, HHOOK, HWND_BOTTOM,
-    HWND_MESSAGE, HWND_TOP, IDC_ARROW, IDNO, IDYES, KBDLLHOOKSTRUCT, LLKHF_INJECTED,
+    SetWindowLongPtrW, SetWindowPos, SetWindowTextW, SetWindowsHookExW,
+    ShowWindow, TranslateMessage, UnhookWindowsHookEx, EnumChildWindows, GWLP_USERDATA, GWLP_WNDPROC,
+    HHOOK, HWND_BOTTOM, HWND_MESSAGE, HWND_TOP, IDC_ARROW, IDNO, IDYES, KBDLLHOOKSTRUCT, LLKHF_INJECTED,
     MB_ICONINFORMATION, MB_ICONWARNING, MB_OK, MB_YESNOCANCEL, MINMAXINFO, MSG, MSLLHOOKSTRUCT,
-    SWP_HIDEWINDOW, SWP_NOACTIVATE, SWP_NOCOPYBITS, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER,
-    SWP_SHOWWINDOW, SW_HIDE, SW_SHOW, SW_SHOWNORMAL, WH_KEYBOARD_LL, WH_MOUSE_LL, WINDOW_EX_STYLE,
-    WINDOW_STYLE, WM_CLOSE, WM_COMMAND, WM_CTLCOLORBTN, WM_CTLCOLOREDIT, WM_CTLCOLORSTATIC,
-    WM_DESTROY, WM_DPICHANGED, WM_DROPFILES, WM_GETMINMAXINFO, WM_KEYDOWN, WM_LBUTTONDOWN,
-    WM_MBUTTONDOWN, WM_NOTIFY, WM_RBUTTONDOWN, WM_SETFONT, WM_SIZE, WM_USER, WM_XBUTTONDOWN,
-    WNDCLASSEXW, WS_BORDER, WS_CAPTION, WS_CHILD, WS_CLIPCHILDREN, WS_CLIPSIBLINGS, WS_MINIMIZEBOX,
-    WS_OVERLAPPED, WS_POPUP, WS_SYSMENU, WS_TABSTOP, WS_THICKFRAME, WS_VISIBLE, WS_VSCROLL,
-    XBUTTON1, XBUTTON2,
+    SB_VERT, SCROLLINFO,
+    SIF_PAGE, SIF_POS, SIF_RANGE, SWP_HIDEWINDOW, SWP_NOACTIVATE, SWP_NOCOPYBITS, SWP_NOMOVE, SWP_NOSIZE,
+    SWP_NOZORDER, SWP_SHOWWINDOW, SW_HIDE, SW_SHOW, SW_SHOWNORMAL, WH_KEYBOARD_LL, WH_MOUSE_LL,
+    WINDOW_EX_STYLE, WINDOW_STYLE, WM_CLOSE, WM_COMMAND, WM_CTLCOLORBTN, WM_CTLCOLOREDIT,
+    WM_CTLCOLORSTATIC, WM_DESTROY, WM_DPICHANGED, WM_DROPFILES, WM_GETMINMAXINFO, WM_KEYDOWN,
+    WM_LBUTTONDOWN, WM_MBUTTONDOWN, WM_MOUSEWHEEL, WM_NOTIFY, WM_RBUTTONDOWN, WM_SETFONT, WM_SIZE,
+    WM_USER, WM_VSCROLL, WM_XBUTTONDOWN, WNDCLASSEXW, WS_BORDER, WS_CAPTION, WS_CHILD, WS_CLIPCHILDREN,
+    WS_CLIPSIBLINGS, WS_MINIMIZEBOX, WS_OVERLAPPED, WS_POPUP, WS_SYSMENU, WS_TABSTOP, WS_THICKFRAME,
+    WS_VISIBLE, WS_VSCROLL, XBUTTON1, XBUTTON2,
 };
 
 use crate::core::chain::{is_chain_path, validate_chains, ChainBlockError};
@@ -122,6 +124,7 @@ const IDC_CAP_CANCEL: isize = 1212;
 const IDC_CAP_SEARCH: isize = 1213;
 const IDC_CAP_OPEN_WORKDIR: isize = 1214;
 const IDC_CAP_DIGIT_BACK: isize = 1215;
+const IDC_CAP_SETTINGS: isize = 1228;
 const IDC_WAKE: isize = 1217;
 const IDC_KEY_SET: isize = 1218;
 const IDC_KEY_CHORD: isize = 1219;
@@ -132,6 +135,9 @@ const IDC_CANCEL_LABEL: isize = 1231;
 const IDC_SEARCH_LABEL: isize = 1232;
 const IDC_OPEN_WORKDIR_LABEL: isize = 1233;
 const IDC_DIGIT_BACK_LABEL: isize = 1234;
+const IDC_SETTINGS_LABEL: isize = 1235;
+const IDC_WINDOW_BG: isize = 1236;
+const IDC_WINDOW_FG: isize = 1237;
 const IDC_MOUSE_BTN: isize = 1220;
 const IDC_MOUSE_SUPPRESS: isize = 1221;
 const IDC_HOTKEY: isize = 1222;
@@ -423,6 +429,14 @@ struct SettingsState {
     btn_cap_search: HWND,
     btn_cap_open_workdir: HWND,
     btn_cap_digit_back: HWND,
+    edit_settings_label: HWND,
+    lbl_settings: HWND,
+    btn_cap_settings: HWND,
+    lbl_settings_cap: HWND,
+    lbl_window_bg: HWND,
+    edit_window_bg: HWND,
+    lbl_window_fg: HWND,
+    edit_window_fg: HWND,
     chk_wake: HWND,
     lbl_wake_cap: HWND,
     lbl_wake: HWND,
@@ -515,6 +529,8 @@ struct SettingsState {
     panel_search: HWND,
     panel_mode: HWND,
     panel_general: HWND,
+    /// Vertical scroll offset per page panel (Slots … General).
+    page_scroll: [i32; 6],
     /// Group boxes (resized to panel width on layout).
     g_keys: HWND,
     g_triggers: HWND,
@@ -690,6 +706,14 @@ pub fn open_at_page(host: HWND, config: &AppConfig, page: u8) -> anyhow::Result<
             btn_cap_search: HWND::default(),
             btn_cap_open_workdir: HWND::default(),
             btn_cap_digit_back: HWND::default(),
+            edit_settings_label: HWND::default(),
+            lbl_settings: HWND::default(),
+            btn_cap_settings: HWND::default(),
+            lbl_settings_cap: HWND::default(),
+            lbl_window_bg: HWND::default(),
+            edit_window_bg: HWND::default(),
+            lbl_window_fg: HWND::default(),
+            edit_window_fg: HWND::default(),
             chk_wake: HWND::default(),
             lbl_wake_cap: HWND::default(),
             lbl_wake: HWND::default(),
@@ -768,6 +792,7 @@ pub fn open_at_page(host: HWND, config: &AppConfig, page: u8) -> anyhow::Result<
             panel_search: HWND::default(),
             panel_mode: HWND::default(),
             panel_general: HWND::default(),
+            page_scroll: [0; 6],
             g_keys: HWND::default(),
             g_triggers: HWND::default(),
             g_search: HWND::default(),
@@ -808,7 +833,7 @@ pub fn open_at_page(host: HWND, config: &AppConfig, page: u8) -> anyhow::Result<
         apply_pending_backup_status(state_ptr);
         SETTINGS_HWND.store(hwnd.0 as isize, Ordering::SeqCst);
         // Size to the tallest/widest tab, then clamp to the monitor work area.
-        fit_settings_window_to_content(hwnd, &*state_ptr, pt);
+        fit_settings_window_to_content(hwnd, &mut *state_ptr, pt);
         show_page(state_ptr, initial_page);
         set_triggers_disabled(true);
 
@@ -909,6 +934,17 @@ unsafe extern "system" fn settings_page_proc(
             let _ = SetTextColor(hdc, COLORREF(0x0000_0000));
             return LRESULT(GetSysColorBrush(COLOR_WINDOW).0 as isize);
         }
+        WM_VSCROLL => {
+            let state_ptr = settings_state_from_child(hwnd);
+            handle_page_vscroll(state_ptr, hwnd, wparam);
+            return LRESULT(0);
+        }
+        WM_MOUSEWHEEL => {
+            let delta = ((wparam.0 >> 16) as i16 as i32) / 120 * -48;
+            let state_ptr = settings_state_from_child(hwnd);
+            scroll_page_by(state_ptr, hwnd, delta);
+            return LRESULT(0);
+        }
         _ => {}
     }
     DefWindowProcW(hwnd, msg, wparam, lparam)
@@ -924,7 +960,7 @@ unsafe fn create_page_panel(parent: HWND) -> anyhow::Result<HWND> {
         WINDOW_EX_STYLE::default(),
         SETTINGS_PAGE_CLASS,
         w!(""),
-        WINDOW_STYLE(WS_CHILD.0 | WS_CLIPCHILDREN.0),
+        WINDOW_STYLE(WS_CHILD.0 | WS_CLIPCHILDREN.0 | WS_VSCROLL.0),
         x,
         y,
         w,
@@ -941,6 +977,129 @@ fn page_panel_rect(rc: &RECT) -> (i32, i32, i32, i32) {
     let w = rc.right.max(100);
     let h = (rc.bottom - TAB_BAND_H - FOOTER_BAND_H).max(100);
     (0, TAB_BAND_H, w, h)
+}
+
+fn page_scroll_index(s: &SettingsState, panel: HWND) -> Option<usize> {
+    let panels = [
+        s.panel_slots,
+        s.panel_keys,
+        s.panel_triggers,
+        s.panel_search,
+        s.panel_mode,
+        s.panel_general,
+    ];
+    panels.iter().position(|p| *p == panel)
+}
+
+unsafe fn apply_panel_scroll(panel: HWND, content_h: i32, scroll: &mut i32) {
+    if panel.0.is_null() {
+        return;
+    }
+    let mut rc = RECT::default();
+    let _ = GetClientRect(panel, &mut rc);
+    let vis = rc.bottom.max(1);
+    let overflow = (content_h - vis).max(0);
+    *scroll = (*scroll).clamp(0, overflow);
+    let si = SCROLLINFO {
+        cbSize: std::mem::size_of::<SCROLLINFO>() as u32,
+        fMask: SIF_RANGE | SIF_PAGE | SIF_POS,
+        nMin: 0,
+        nMax: (content_h - 1).max(0),
+        nPage: vis as u32,
+        nPos: *scroll,
+        nTrackPos: 0,
+    };
+    SetScrollInfo(panel, SB_VERT, &si, true);
+    let _ = ShowScrollBar(panel, SB_VERT, overflow > 0);
+    if *scroll != 0 {
+        offset_page_children(panel, -*scroll);
+    }
+}
+
+unsafe fn offset_page_children(panel: HWND, dy: i32) {
+    if dy == 0 {
+        return;
+    }
+    let arg = (panel, dy);
+    let _ = EnumChildWindows(
+        panel,
+        Some(offset_child_proc),
+        LPARAM(&arg as *const (HWND, i32) as isize),
+    );
+}
+
+unsafe extern "system" fn offset_child_proc(hwnd: HWND, lparam: LPARAM) -> BOOL {
+    let (panel, dy) = *(lparam.0 as *const (HWND, i32));
+    let Ok(parent) = GetParent(hwnd) else {
+        return BOOL(1);
+    };
+    if parent != panel {
+        return BOOL(1);
+    }
+    let mut rc = RECT::default();
+    if GetWindowRect(hwnd, &mut rc).is_err() {
+        return BOOL(1);
+    }
+    let mut pt = POINT {
+        x: rc.left,
+        y: rc.top,
+    };
+    if !ScreenToClient(parent, &mut pt).as_bool() {
+        return BOOL(1);
+    }
+    let _ = SetWindowPos(
+        hwnd,
+        HWND_TOP,
+        pt.x,
+        pt.y + dy,
+        0,
+        0,
+        SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE,
+    );
+    BOOL(1)
+}
+
+unsafe fn scroll_page_by(state_ptr: *mut SettingsState, panel: HWND, delta: i32) {
+    if state_ptr.is_null() || panel.0.is_null() || delta == 0 {
+        return;
+    }
+    let s = &mut *state_ptr;
+    let Some(i) = page_scroll_index(s, panel) else {
+        return;
+    };
+    s.page_scroll[i] = s.page_scroll[i].saturating_add(delta);
+    let hwnd = HWND(SETTINGS_HWND.load(Ordering::SeqCst) as *mut _);
+    if !hwnd.0.is_null() {
+        layout_settings(hwnd, s);
+    }
+}
+
+unsafe fn handle_page_vscroll(state_ptr: *mut SettingsState, panel: HWND, wparam: WPARAM) {
+    if state_ptr.is_null() {
+        return;
+    }
+    let code = (wparam.0 & 0xFFFF) as u32;
+    let pos = ((wparam.0 >> 16) & 0xFFFF) as i16 as i32;
+    let delta = match code {
+        0 => -24,  // SB_LINEUP
+        1 => 24,   // SB_LINEDOWN
+        2 => -120, // SB_PAGEUP
+        3 => 120,  // SB_PAGEDOWN
+        4 | 5 => {
+            // SB_THUMBPOSITION / SB_THUMBTRACK
+            let s = &mut *state_ptr;
+            if let Some(i) = page_scroll_index(s, panel) {
+                s.page_scroll[i] = pos;
+                let hwnd = HWND(SETTINGS_HWND.load(Ordering::SeqCst) as *mut _);
+                if !hwnd.0.is_null() {
+                    layout_settings(hwnd, s);
+                }
+            }
+            return;
+        }
+        _ => 0,
+    };
+    scroll_page_by(state_ptr, panel, delta);
 }
 
 fn scale_for_dpi(value: i32, dpi: u32) -> i32 {
@@ -1025,7 +1184,7 @@ unsafe fn settings_placement_for_cursor(pt: POINT) -> (i32, i32, i32, i32) {
 }
 
 /// Client size from the tallest / widest tab content, then clamp to the work area.
-unsafe fn fit_settings_window_to_content(hwnd: HWND, s: &SettingsState, pt: POINT) {
+unsafe fn fit_settings_window_to_content(hwnd: HWND, s: &mut SettingsState, pt: POINT) {
     let _ = size_all_page_panels(hwnd, s);
     let slots_h = layout_slots_page(hwnd, s);
     let keys_h = layout_keys_page(hwnd, s);
@@ -1033,14 +1192,14 @@ unsafe fn fit_settings_window_to_content(hwnd: HWND, s: &SettingsState, pt: POIN
     let search_h = layout_search_page(hwnd, s);
     let mode_h = layout_mode_page(hwnd, s);
     let general_h = layout_general_page(hwnd, s);
-    let mut panel_h = slots_h.max(general_h);
-    if s.draft_settings.ui.show_advanced {
-        panel_h = panel_h
-            .max(keys_h)
-            .max(triggers_h)
-            .max(search_h)
-            .max(mode_h);
+    let mut panel_h = slots_h;
+    if !s.draft_settings.ui.show_advanced {
+        panel_h = panel_h.max(general_h);
     }
+    let _ = keys_h;
+    let _ = triggers_h;
+    let _ = search_h;
+    let _ = mode_h;
     panel_h += 8;
 
     let auto_w = measure_text_width(hwnd, &window_text(s.chk_autostart)) + 56;
@@ -1224,6 +1383,16 @@ unsafe fn set_hwnd_visible(hwnd: HWND, on: bool) {
     let _ = ShowWindow(hwnd, if on { SW_SHOW } else { SW_HIDE });
 }
 
+/// ON (wake) is on every key set. Hide nothing; layout skips the row only
+/// if the live set reports it is not configurable.
+unsafe fn apply_wake_control_visibility(s: &SettingsState) {
+    let on = s.draft_settings.keys.wake_configurable();
+    set_hwnd_visible(s.chk_wake, on);
+    set_hwnd_visible(s.lbl_wake_cap, on);
+    set_hwnd_visible(s.lbl_wake, on);
+    set_hwnd_visible(s.btn_cap_wake, on);
+}
+
 /// General + Slots always; Mode/Keys/Triggers/Search only when Advanced is on.
 /// Advanced checkbox sits on the right of the tab band. Open still starts on Slots.
 unsafe fn place_tab_buttons(hwnd: HWND, s: &SettingsState) {
@@ -1401,7 +1570,7 @@ unsafe fn place_footer_buttons(hwnd: HWND, s: &SettingsState) {
 }
 
 /// Recompute page panels and reflow every tab so controls never sit under the footer.
-unsafe fn layout_settings(hwnd: HWND, s: &SettingsState) {
+unsafe fn layout_settings(hwnd: HWND, s: &mut SettingsState) {
     let mut rc = RECT::default();
     let _ = GetClientRect(hwnd, &mut rc);
     if rc.right <= 0 || rc.bottom <= 0 {
@@ -1410,12 +1579,18 @@ unsafe fn layout_settings(hwnd: HWND, s: &SettingsState) {
 
     // Size all panels first (including those parked on HWND_MESSAGE), then reflow.
     let _ = size_all_page_panels(hwnd, s);
-    layout_slots_page(hwnd, s);
-    layout_keys_page(hwnd, s);
-    layout_triggers_page(hwnd, s);
-    layout_search_page(hwnd, s);
-    layout_mode_page(hwnd, s);
-    layout_general_page(hwnd, s);
+    let h_slots = layout_slots_page(hwnd, s);
+    let h_keys = layout_keys_page(hwnd, s);
+    let h_triggers = layout_triggers_page(hwnd, s);
+    let h_search = layout_search_page(hwnd, s);
+    let h_mode = layout_mode_page(hwnd, s);
+    let h_general = layout_general_page(hwnd, s);
+    apply_panel_scroll(s.panel_slots, h_slots, &mut s.page_scroll[0]);
+    apply_panel_scroll(s.panel_keys, h_keys, &mut s.page_scroll[1]);
+    apply_panel_scroll(s.panel_triggers, h_triggers, &mut s.page_scroll[2]);
+    apply_panel_scroll(s.panel_search, h_search, &mut s.page_scroll[3]);
+    apply_panel_scroll(s.panel_mode, h_mode, &mut s.page_scroll[4]);
+    apply_panel_scroll(s.panel_general, h_general, &mut s.page_scroll[5]);
     place_tab_buttons(hwnd, s);
     apply_page_panel_layout(hwnd, s);
     place_footer_buttons(hwnd, s);
@@ -1585,6 +1760,7 @@ unsafe fn layout_keys_page(hwnd: HWND, s: &SettingsState) -> i32 {
     let label_h = 26i32;
     let row_ctl_h = 24i32;
     let disp_w = 56i32;
+    let show_wake = s.draft_settings.keys.wake_configurable();
     let cap_texts = [
         window_text(s.lbl_start_cap),
         window_text(s.lbl_confirm_cap),
@@ -1592,7 +1768,12 @@ unsafe fn layout_keys_page(hwnd: HWND, s: &SettingsState) -> i32 {
         window_text(s.lbl_search_cap),
         window_text(s.lbl_open_workdir_cap),
         window_text(s.lbl_digit_back_cap),
-        window_text(s.lbl_wake_cap),
+        window_text(s.lbl_settings_cap),
+        if show_wake {
+            window_text(s.lbl_wake_cap)
+        } else {
+            String::new()
+        },
     ];
     let cap_refs: Vec<&str> = cap_texts
         .iter()
@@ -1612,6 +1793,26 @@ unsafe fn layout_keys_page(hwnd: HWND, s: &SettingsState) -> i32 {
         ky,
         set_combo_w,
         200,
+    );
+    let color_x = stack_x + set_lbl_w + KEYS_COL_GAP + set_combo_w + KEYS_COL_GAP;
+    let bg_lbl_w = measure_text_width(hwnd, &window_text(s.lbl_window_bg)).max(24) + 4;
+    move_child_clean(s.lbl_window_bg, color_x, ky, bg_lbl_w, label_h);
+    move_child_clean(
+        s.edit_window_bg,
+        color_x + bg_lbl_w + 4,
+        ky,
+        78,
+        row_ctl_h,
+    );
+    let fg_x = color_x + bg_lbl_w + 4 + 78 + KEYS_COL_GAP;
+    let fg_lbl_w = measure_text_width(hwnd, &window_text(s.lbl_window_fg)).max(24) + 4;
+    move_child_clean(s.lbl_window_fg, fg_x, ky, fg_lbl_w, label_h);
+    move_child_clean(
+        s.edit_window_fg,
+        fg_x + fg_lbl_w + 4,
+        ky,
+        78,
+        row_ctl_h,
     );
     ky += label_h.max(row_ctl_h) + FIELD_BLOCK_GAP;
     let place_key_row = |ky: &mut i32, cap: HWND, value: HWND, edit: HWND, btn: HWND| {
@@ -1679,30 +1880,40 @@ unsafe fn layout_keys_page(hwnd: HWND, s: &SettingsState) -> i32 {
         s.edit_digit_back_label,
         s.btn_cap_digit_back,
     );
-    let wake_txt = window_text(s.chk_wake);
-    let wake_h = if measure_text_width(hwnd, &wake_txt) + 28 > stack_inner_w {
-        36
-    } else {
-        22
-    };
-    move_child_clean(s.chk_wake, stack_x, ky, stack_inner_w, wake_h);
-    ky += wake_h.max(24) + FIELD_BLOCK_GAP;
-    // ON: Caption | Trigger | (no Display) | Capture — Capture aligns with action rows.
-    move_child_clean(s.lbl_wake_cap, stack_x, ky, cap_w, label_h);
-    {
-        let rest_x = stack_x + cap_w + KEYS_COL_GAP;
-        let rest_w = (stack_inner_w - cap_w - KEYS_COL_GAP).max(160);
-        let value_w = (rest_w - keys_cap_w - disp_w - KEYS_COL_GAP * 2).max(80);
-        move_child_clean(s.lbl_wake, rest_x, ky, value_w, label_h);
-        move_child_clean(
-            s.btn_cap_wake,
-            rest_x + value_w + KEYS_COL_GAP + disp_w + KEYS_COL_GAP,
-            ky,
-            keys_cap_w,
-            row_ctl_h,
-        );
+    place_key_row(
+        &mut ky,
+        s.lbl_settings_cap,
+        s.lbl_settings,
+        s.edit_settings_label,
+        s.btn_cap_settings,
+    );
+    apply_wake_control_visibility(s);
+    if show_wake {
+        let wake_txt = window_text(s.chk_wake);
+        let wake_h = if measure_text_width(hwnd, &wake_txt) + 28 > stack_inner_w {
+            36
+        } else {
+            22
+        };
+        move_child_clean(s.chk_wake, stack_x, ky, stack_inner_w, wake_h);
+        ky += wake_h.max(24) + FIELD_BLOCK_GAP;
+        // ON: Caption | Trigger | (no Display) | Capture — Capture aligns with action rows.
+        move_child_clean(s.lbl_wake_cap, stack_x, ky, cap_w, label_h);
+        {
+            let rest_x = stack_x + cap_w + KEYS_COL_GAP;
+            let rest_w = (stack_inner_w - cap_w - KEYS_COL_GAP).max(160);
+            let value_w = (rest_w - keys_cap_w - disp_w - KEYS_COL_GAP * 2).max(80);
+            move_child_clean(s.lbl_wake, rest_x, ky, value_w, label_h);
+            move_child_clean(
+                s.btn_cap_wake,
+                rest_x + value_w + KEYS_COL_GAP + disp_w + KEYS_COL_GAP,
+                ky,
+                keys_cap_w,
+                row_ctl_h,
+            );
+        }
+        ky += label_h.max(row_ctl_h) + FIELD_BLOCK_GAP;
     }
-    ky += label_h.max(row_ctl_h) + FIELD_BLOCK_GAP;
     let reset_w = fitted_button_width(hwnd, &window_text(s.btn_reset_keys));
     move_child_clean(s.btn_reset_keys, stack_x, ky, reset_w, 26);
     ky += 26 + FIELD_BLOCK_GAP;
@@ -1717,24 +1928,26 @@ unsafe fn layout_keys_page(hwnd: HWND, s: &SettingsState) -> i32 {
         0,
         SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
     );
-    let _ = SetWindowPos(
-        s.chk_wake,
-        HWND_TOP,
-        0,
-        0,
-        0,
-        0,
-        SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
-    );
-    let _ = SetWindowPos(
-        s.btn_cap_wake,
-        HWND_TOP,
-        0,
-        0,
-        0,
-        0,
-        SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
-    );
+    if show_wake {
+        let _ = SetWindowPos(
+            s.chk_wake,
+            HWND_TOP,
+            0,
+            0,
+            0,
+            0,
+            SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
+        );
+        let _ = SetWindowPos(
+            s.btn_cap_wake,
+            HWND_TOP,
+            0,
+            0,
+            0,
+            0,
+            SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
+        );
+    }
     let _ = SetWindowPos(
         s.g_keys,
         HWND_BOTTOM,
@@ -2661,6 +2874,9 @@ unsafe fn create_children(parent: HWND, state_ptr: *mut SettingsState) -> anyhow
     let txt_search = t(keys::SETTINGS_SEARCH);
     let txt_open_workdir_key = t(keys::SETTINGS_OPEN_WORKDIR_KEY);
     let txt_digit_back = t(keys::SETTINGS_DIGIT_BACK);
+    let txt_settings_key = t(keys::SETTINGS_SETTINGS_KEY);
+    let txt_window_bg = t(keys::SETTINGS_WINDOW_BG);
+    let txt_window_fg = t(keys::SETTINGS_WINDOW_FG);
     let txt_wake = t(keys::SETTINGS_WAKE_KEY);
     let txt_wake_vk = t(keys::SETTINGS_WAKE_VK);
     let txt_key_set = t(keys::SETTINGS_KEY_SET);
@@ -2939,6 +3155,12 @@ unsafe fn create_children(parent: HWND, state_ptr: *mut SettingsState) -> anyhow
         instance,
         None,
     )?;
+    s.lbl_window_bg = create_static(keys, &txt_window_bg, stack_x + 250, ky, 80, LABEL_H)?;
+    s.edit_window_bg = create_edit(keys, IDC_WINDOW_BG, stack_x + 334, ky, 78, row_ctl_h, 0)?;
+    let _ = SendMessageW(s.edit_window_bg, 0x00C5, WPARAM(7), LPARAM(0));
+    s.lbl_window_fg = create_static(keys, &txt_window_fg, stack_x + 420, ky, 40, LABEL_H)?;
+    s.edit_window_fg = create_edit(keys, IDC_WINDOW_FG, stack_x + 464, ky, 78, row_ctl_h, 0)?;
+    let _ = SendMessageW(s.edit_window_fg, 0x00C5, WPARAM(7), LPARAM(0));
     ky += LABEL_H.max(row_ctl_h) + FIELD_BLOCK_GAP;
     let disp_w = 56i32;
     let cap_w = action_key_caption_col_w(
@@ -2951,6 +3173,7 @@ unsafe fn create_children(parent: HWND, state_ptr: *mut SettingsState) -> anyhow
             &txt_search,
             &txt_open_workdir_key,
             &txt_digit_back,
+            &txt_settings_key,
             &txt_wake_vk,
         ],
     );
@@ -2999,6 +3222,7 @@ unsafe fn create_children(parent: HWND, state_ptr: *mut SettingsState) -> anyhow
     let mut lbl_search_cap = HWND::default();
     let mut lbl_open_workdir_cap = HWND::default();
     let mut lbl_digit_back_cap = HWND::default();
+    let mut lbl_settings_cap = HWND::default();
     place_key_row(
         &mut ky,
         &mut lbl_start_cap,
@@ -3059,6 +3283,16 @@ unsafe fn create_children(parent: HWND, state_ptr: *mut SettingsState) -> anyhow
         IDC_DIGIT_BACK_LABEL,
         IDC_CAP_DIGIT_BACK,
     )?;
+    place_key_row(
+        &mut ky,
+        &mut lbl_settings_cap,
+        &mut s.lbl_settings,
+        &mut s.edit_settings_label,
+        &mut s.btn_cap_settings,
+        &txt_settings_key,
+        IDC_SETTINGS_LABEL,
+        IDC_CAP_SETTINGS,
+    )?;
     let wake_h = if measure_text_width(parent, &txt_wake) + 28 > stack_inner_w {
         36
     } else {
@@ -3099,6 +3333,7 @@ unsafe fn create_children(parent: HWND, state_ptr: *mut SettingsState) -> anyhow
     s.lbl_search_cap = lbl_search_cap;
     s.lbl_open_workdir_cap = lbl_open_workdir_cap;
     s.lbl_digit_back_cap = lbl_digit_back_cap;
+    s.lbl_settings_cap = lbl_settings_cap;
     ky += FIELD_BLOCK_GAP;
     let reset_keys_w = fitted_button_width(parent, &txt_reset);
     s.btn_reset_keys = create_btn(
@@ -3151,6 +3386,7 @@ unsafe fn create_children(parent: HWND, state_ptr: *mut SettingsState) -> anyhow
         0,
         SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
     );
+    apply_wake_control_visibility(s);
     ky = keys_top + g_keys_h + KEYS_GROUP_GAP;
     let legend_top = ky;
     ky += 28;
@@ -3279,6 +3515,14 @@ unsafe fn create_children(parent: HWND, state_ptr: *mut SettingsState) -> anyhow
         s.lbl_digit_back,
         s.edit_digit_back_label,
         s.btn_cap_digit_back,
+        s.lbl_settings_cap,
+        s.lbl_settings,
+        s.edit_settings_label,
+        s.btn_cap_settings,
+        s.lbl_window_bg,
+        s.edit_window_bg,
+        s.lbl_window_fg,
+        s.edit_window_fg,
         s.lbl_key_set,
         s.combo_key_set,
         s.chk_wake,
@@ -4428,6 +4672,7 @@ fn legend_item_label(id: LegendId) -> String {
         LegendId::Search => t(keys::APP_TYPING_LEGEND_SEARCH),
         LegendId::DigitBack => t(keys::APP_TYPING_LEGEND_DIGIT_BACK),
         LegendId::Cancel => t(keys::APP_TYPING_LEGEND_ESC),
+        LegendId::Settings => t(keys::APP_TYPING_LEGEND_SETTINGS),
     }
 }
 
@@ -5638,8 +5883,10 @@ unsafe fn fill_key_set_controls(state_ptr: *mut SettingsState) {
         s.draft_settings.keys.chord_for_id(KEY_SET_KEYBOARD),
     );
 
-    set_check(s.chk_wake, s.draft_settings.keys.wake_enabled);
+    let wake_on = s.draft_settings.keys.wake_configurable() && s.draft_settings.keys.wake_enabled;
+    set_check(s.chk_wake, wake_on);
     set_text(s.lbl_wake, &s.draft_settings.keys.wake);
+    apply_wake_control_visibility(s);
     s.suppress_key_set_change = false;
 }
 
@@ -5666,11 +5913,14 @@ unsafe fn on_key_set_sel(state_ptr: *mut SettingsState) {
     if !s.draft_settings.keys.activate(&id) {
         return;
     }
+    if s.capturing == Some(CaptureTarget::Wake) && !s.draft_settings.keys.wake_configurable() {
+        stop_capture(state_ptr);
+    }
     update_key_labels(state_ptr);
     fill_key_set_controls(state_ptr);
     let hwnd = HWND(SETTINGS_HWND.load(Ordering::SeqCst) as *mut _);
     if !hwnd.0.is_null() {
-        layout_settings(hwnd, &*state_ptr);
+        layout_settings(hwnd, &mut *state_ptr);
     }
 }
 
@@ -5703,6 +5953,9 @@ unsafe fn collect_live_key_fields(s: &mut SettingsState) {
     let search_l = window_text(s.edit_search_label);
     let open_l = window_text(s.edit_open_workdir_label);
     let back_l = window_text(s.edit_digit_back_label);
+    let settings_l = window_text(s.edit_settings_label);
+    let window_bg = window_text(s.edit_window_bg);
+    let window_fg = window_text(s.edit_window_fg);
     let wake_on = get_check(s.chk_wake);
     let k = &mut s.draft_settings.keys;
     k.set_label(KeyRole::Start, &start_l);
@@ -5711,7 +5964,14 @@ unsafe fn collect_live_key_fields(s: &mut SettingsState) {
     k.set_label(KeyRole::Search, &search_l);
     k.set_label(KeyRole::OpenWorkdir, &open_l);
     k.set_label(KeyRole::DigitBack, &back_l);
-    k.wake_enabled = wake_on;
+    k.set_label(KeyRole::Settings, &settings_l);
+    k.window_bg = window_bg;
+    k.window_fg = window_fg;
+    if k.wake_configurable() {
+        k.wake_enabled = wake_on;
+    } else {
+        k.wake_enabled = false;
+    }
 }
 
 unsafe fn update_key_labels(state_ptr: *mut SettingsState) {
@@ -5729,6 +5989,10 @@ unsafe fn update_key_labels(state_ptr: *mut SettingsState) {
     set_text(s.edit_open_workdir_label, &k.open_workdir_label);
     set_text(s.lbl_digit_back, &k.digit_back);
     set_text(s.edit_digit_back_label, &k.digit_back_label);
+    set_text(s.lbl_settings, &k.settings);
+    set_text(s.edit_settings_label, &k.settings_label);
+    set_text(s.edit_window_bg, &k.window_bg);
+    set_text(s.edit_window_fg, &k.window_fg);
     set_text(s.lbl_wake, &k.wake);
 }
 
@@ -6337,6 +6601,7 @@ unsafe fn key_role_controls(s: &SettingsState, role: KeyRole) -> (HWND, HWND, HW
             s.edit_digit_back_label,
             s.btn_cap_digit_back,
         ),
+        KeyRole::Settings => (s.lbl_settings, s.edit_settings_label, s.btn_cap_settings),
     }
 }
 
@@ -6365,6 +6630,9 @@ unsafe fn refresh_capture_buttons(state_ptr: *mut SettingsState) {
 unsafe fn on_capture_button(state_ptr: *mut SettingsState, target: CaptureTarget) {
     if (*state_ptr).capturing == Some(target) {
         stop_capture(state_ptr);
+        return;
+    }
+    if target == CaptureTarget::Wake && !(*state_ptr).draft_settings.keys.wake_configurable() {
         return;
     }
     begin_capture(state_ptr, target);
@@ -6501,9 +6769,17 @@ unsafe fn focused_is_edit() -> bool {
 
 unsafe fn on_capture_key(state_ptr: *mut SettingsState, vk: u16) {
     let s = &mut *state_ptr;
-    s.draft_settings.keys.wake_enabled = get_check(s.chk_wake);
+    if s.draft_settings.keys.wake_configurable() {
+        s.draft_settings.keys.wake_enabled = get_check(s.chk_wake);
+    } else {
+        s.draft_settings.keys.wake_enabled = false;
+    }
     match s.capturing {
         Some(CaptureTarget::Wake) => {
+            if !s.draft_settings.keys.wake_configurable() {
+                stop_capture(state_ptr);
+                return;
+            }
             let mut trial = s.draft_settings.keys.clone();
             match apply_captured_wake(&mut trial, vk) {
                 Ok(()) => {
@@ -6711,11 +6987,19 @@ unsafe extern "system" fn settings_proc(
                     IDC_CAP_DIGIT_BACK => {
                         on_capture_button(state_ptr, CaptureTarget::Key(KeyRole::DigitBack))
                     }
+                    IDC_CAP_SETTINGS => {
+                        on_capture_button(state_ptr, CaptureTarget::Key(KeyRole::Settings))
+                    }
                     IDC_CAP_WAKE => on_capture_button(state_ptr, CaptureTarget::Wake),
                     IDC_CAP_MOUSE => on_capture_button(state_ptr, CaptureTarget::Mouse),
                     IDC_WAKE => {
                         let s = &mut *state_ptr;
-                        s.draft_settings.keys.wake_enabled = get_check(s.chk_wake);
+                        if s.draft_settings.keys.wake_configurable() {
+                            s.draft_settings.keys.wake_enabled = get_check(s.chk_wake);
+                        } else {
+                            s.draft_settings.keys.wake_enabled = false;
+                            set_check(s.chk_wake, false);
+                        }
                     }
                     IDC_RESET_KEYS => {
                         (*state_ptr).draft_settings.keys.reset_current_set();
@@ -6860,13 +7144,22 @@ unsafe extern "system" fn settings_proc(
                 );
             }
             if !state_ptr.is_null() {
-                layout_settings(hwnd, &*state_ptr);
+                layout_settings(hwnd, &mut *state_ptr);
+            }
+            LRESULT(0)
+        }
+        WM_MOUSEWHEEL => {
+            if !state_ptr.is_null() {
+                let s = &*state_ptr;
+                let panel = active_page_panel(s);
+                let delta = ((wparam.0 >> 16) as i16 as i32) / 120 * -48;
+                scroll_page_by(state_ptr, panel, delta);
             }
             LRESULT(0)
         }
         WM_SIZE => {
             if !state_ptr.is_null() {
-                layout_settings(hwnd, &*state_ptr);
+                layout_settings(hwnd, &mut *state_ptr);
             }
             LRESULT(0)
         }

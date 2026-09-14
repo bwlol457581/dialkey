@@ -165,38 +165,105 @@ pub fn launch_slot(
 /// Open the slot's working folder only. Does not launch Path.
 ///
 /// Folder is `workdir` if set, otherwise Path's parent. The slot `openWorkdir`
-/// flag is ignored. URL / `chain:` have no folder — returns [`LaunchError::WorkdirUnavailable`].
-pub fn open_slot_workdir(slot: &Slot, exe_dir: &Path) -> Result<(), LaunchError> {
-    if is_http_url(&slot.path) || is_chain_path(&slot.path) {
+/// flag is ignored. A top-level URL has no folder. A `chain:` slot opens each
+/// member's folder in order (same as opening 101 then 102). Nested chain / URL
+/// / missing ids are skipped; the chain's own `workdir` is unused.
+pub fn open_slot_workdir(
+    slot: &Slot,
+    exe_dir: &Path,
+    registry: &SlotRegistry,
+) -> Result<(), LaunchError> {
+    let folders = workdir_open_targets(slot, exe_dir, registry);
+    if folders.is_empty() {
         info!(
             slot_id = %slot.id,
-            "open workdir skipped (url/chain); path not launched"
+            "open workdir skipped (no folder); path not launched"
         );
         return Err(LaunchError::WorkdirUnavailable);
     }
+    let mut any_ok = false;
+    for folder in &folders {
+        info!(
+            slot_id = %slot.id,
+            folder = %folder.display(),
+            "opening workdir only"
+        );
+        #[cfg(windows)]
+        {
+            if shell_open_path(folder).is_ok() {
+                any_ok = true;
+            }
+        }
+        #[cfg(not(windows))]
+        {
+            let _ = folder;
+            any_ok = true;
+        }
+    }
+    if any_ok {
+        Ok(())
+    } else {
+        Err(LaunchError::WorkdirUnavailable)
+    }
+}
+
+/// Folders that Open-workdir would try, in order. Empty → no folder to open.
+pub fn workdir_open_targets(slot: &Slot, exe_dir: &Path, registry: &SlotRegistry) -> Vec<PathBuf> {
+    if is_http_url(&slot.path) {
+        return Vec::new();
+    }
+    if is_chain_path(&slot.path) {
+        return chain_workdir_targets(slot, exe_dir, registry);
+    }
+    plain_workdir_if_dir(slot, exe_dir).into_iter().collect()
+}
+
+fn chain_workdir_targets(slot: &Slot, exe_dir: &Path, registry: &SlotRegistry) -> Vec<PathBuf> {
+    let targets = match parse_chain_ids(&slot.path) {
+        Ok(ids) => ids,
+        Err(e) => {
+            error!(slot_id = %slot.id, error = %e, "invalid chain path");
+            return Vec::new();
+        }
+    };
+    info!(slot_id = %slot.id, targets = ?targets, "opening chain member folders");
+    let mut out = Vec::new();
+    for tid in &targets {
+        let Some(target) = registry.get(tid) else {
+            error!(slot_id = %slot.id, target = %tid, "chain target missing");
+            continue;
+        };
+        if is_chain_path(&target.path) {
+            warn!(
+                slot_id = %slot.id,
+                target = %tid,
+                "skipping nested chain (one level only)"
+            );
+            continue;
+        }
+        if is_http_url(&target.path) {
+            info!(slot_id = %slot.id, target = %tid, "open workdir skip url member");
+            continue;
+        }
+        if let Some(folder) = plain_workdir_if_dir(target, exe_dir) {
+            out.push(folder);
+        }
+    }
+    out
+}
+
+fn plain_workdir_if_dir(slot: &Slot, exe_dir: &Path) -> Option<PathBuf> {
     let when = DateParts::now();
     let folder = workdir_folder(slot, exe_dir, &when);
-    info!(
-        slot_id = %slot.id,
-        folder = %folder.display(),
-        "opening workdir only"
-    );
-    if !path_is_dir(&folder) {
+    if path_is_dir(&folder) {
+        Some(folder)
+    } else {
         error!(
             slot_id = %slot.id,
             folder = %folder.display(),
             "workdir is not an existing folder"
         );
-        return Err(LaunchError::WorkdirUnavailable);
-    }
-    #[cfg(windows)]
-    {
-        shell_open_path(&folder)
-    }
-    #[cfg(not(windows))]
-    {
-        let _ = folder;
-        Ok(())
+        None
     }
 }
 
@@ -606,16 +673,49 @@ mod tests {
     }
 
     #[test]
-    fn open_workdir_skips_url_and_chain() {
+    fn open_workdir_skips_url_and_walks_chain() {
         let exe = Path::new("D:/apps/dialkey");
+        let folder = std::env::temp_dir().join("dialkey-workdir-open-test");
+        std::fs::create_dir_all(&folder).expect("create test folder");
+        assert!(
+            crate::core::winpath::path_is_dir(&folder),
+            "Open needs a real folder; got {}",
+            folder.display()
+        );
+        let folder_s = folder.to_string_lossy().into_owned();
+        let empty = SlotRegistry::new(vec![]);
         assert!(matches!(
-            open_slot_workdir(&slot("https://example.com", ""), exe),
+            open_slot_workdir(&slot("https://example.com", ""), exe, &empty),
             Err(LaunchError::WorkdirUnavailable)
         ));
-        assert!(matches!(
-            open_slot_workdir(&slot("chain:11,20", ""), exe),
-            Err(LaunchError::WorkdirUnavailable)
-        ));
+        let chain = slot("chain:11,20", "");
+        let mut chain = chain;
+        chain.id = "12".into();
+        let a = {
+            let mut s = slot(r"D:\apps\tool.exe", &folder_s);
+            s.id = "11".into();
+            s
+        };
+        let b = {
+            let mut s = slot("https://example.com", "");
+            s.id = "20".into();
+            s
+        };
+        let nested = {
+            let mut s = slot("chain:11", "");
+            s.id = "99".into();
+            s
+        };
+        let chain_nested = {
+            let mut s = slot("chain:11,99,20,88", "");
+            s.id = "12".into();
+            s
+        };
+        let reg = SlotRegistry::new(vec![a, b, nested, chain_nested.clone()]);
+        let folders = workdir_open_targets(&chain_nested, exe, &reg);
+        assert_eq!(folders.len(), 1);
+        assert_eq!(folders[0], folder);
+        assert!(workdir_open_targets(&chain, exe, &empty).is_empty());
     }
 
     #[test]
