@@ -37,8 +37,8 @@ use crate::core::config::{
 };
 use crate::core::i18n::{self, keys, t, tf};
 use crate::core::keys::{
-    digit_from_vk, KeyBindings, KeyRole, ResolvedKeys, KEY_SET_KEYBOARD, KEY_SET_NUMPAD,
-    VK_CONTROL, VK_OEM_5, VK_SUBTRACT,
+    digit_from_vk, vks_equivalent, KeyBindings, KeyRole, ResolvedKeys, KEY_SET_KEYBOARD,
+    KEY_SET_NUMPAD, VK_SUBTRACT,
 };
 use crate::core::legend::{
     dial_area_ids, dial_head_display, LegendId, LegendSettings, DIAL_AREA_ROWS, LEGEND_ITEM_COUNT,
@@ -69,8 +69,8 @@ const TIMEOUT_TIMER_ID: usize = 1;
 const FEEDBACK_TIMER_ID: usize = 2;
 const TYPING_WIDTH: i32 = 420;
 /// 10 dial rows + separator + 5 option slots + padding.
-/// 11 dial rows (current + decade) + separator + 5 legend; 18px pitch + pad.
-const TYPING_HEIGHT: i32 = 358;
+/// 11 dial rows (current + decade) + separator + 6 legend; 18px pitch + pad.
+const TYPING_HEIGHT: i32 = 376;
 
 pub(super) static HOST_HWND: AtomicIsize = AtomicIsize::new(0);
 static TYPING_HWND: AtomicIsize = AtomicIsize::new(0);
@@ -104,6 +104,8 @@ struct ViewState {
     body_from: Option<usize>,
     /// Acceptance feedback after a launch request (Phase 9-4).
     feedback: bool,
+    bg: u32,
+    fg: u32,
 }
 
 static VIEW: OnceLock<Mutex<ViewState>> = OnceLock::new();
@@ -116,6 +118,8 @@ fn view() -> &'static Mutex<ViewState> {
             rows: Vec::new(),
             body_from: None,
             feedback: false,
+            bg: 0x00_C4_F9_FF,
+            fg: 0x00_22_22_22,
         })
     })
 }
@@ -232,10 +236,11 @@ fn is_consumed_vk(vk: u32) -> bool {
     if let Ok(k) = resolved_keys_slot().lock() {
         if k.is_start(vk)
             || vk == k.confirm
-            || vk == k.cancel
+            || k.is_cancel(vk)
             || k.is_search(vk)
             || k.is_open_workdir(vk)
-            || vk == k.digit_back
+            || vks_equivalent(k.digit_back, vk)
+            || k.is_settings(vk)
             || k.is_wake(vk)
         {
             return true;
@@ -253,9 +258,10 @@ fn resolved_keys_slot() -> &'static Mutex<ResolvedKeys> {
             start: 0x6B,
             confirm: 0x0D,
             cancel: 0x1B,
-            search: VK_OEM_5,
-            open_workdir: VK_CONTROL,
-            digit_back: 0x27,
+            search: 0x09,
+            open_workdir: crate::core::keys::VK_DECIMAL,
+            digit_back: 0x08,
+            settings: 0,
             wake: VK_SUBTRACT,
             wake_enabled: false,
         })
@@ -365,7 +371,9 @@ impl TypingSession {
             v.mode = self.sequence.mode();
             v.rows = rows;
             v.body_from = body_from;
-            v.feedback = false;
+            let (bg, fg) = self.bindings.typing_colorref();
+            v.bg = bg;
+            v.fg = fg;
         }
         unsafe {
             let _ = InvalidateRect(self.hwnd, None, true);
@@ -376,22 +384,24 @@ impl TypingSession {
         // returns true if session should close
         if self.feedback_pending {
             // During acceptance display, only Cancel closes early.
-            return vk == self.keys.cancel;
+            return self.keys.is_cancel(vk);
         }
 
         if self.keys.is_wake(vk) {
             return false;
         }
 
-        let event = if vk == self.keys.cancel {
+        let event = if self.keys.is_cancel(vk) {
             SequenceEvent::Cancel
         } else if self.keys.is_start(vk) {
             SequenceEvent::Start
         } else if vk == self.keys.confirm {
             SequenceEvent::Confirm
+        } else if self.keys.is_settings(vk) {
+            SequenceEvent::Settings
         } else if self.keys.is_open_workdir(vk) {
             SequenceEvent::OpenWorkdir
-        } else if vk == self.keys.digit_back {
+        } else if vks_equivalent(self.keys.digit_back, vk) {
             SequenceEvent::DigitBack
         } else if self.keys.is_search(vk) {
             SequenceEvent::Search
@@ -424,6 +434,13 @@ impl TypingSession {
                 let host = HWND(HOST_HWND.load(Ordering::SeqCst) as *mut _);
                 unsafe {
                     let _ = PostMessageW(host, WM_DK_SEARCH, WPARAM(0), LPARAM(0));
+                }
+                true
+            }
+            Action::OpenSettings => {
+                let host = HWND(HOST_HWND.load(Ordering::SeqCst) as *mut _);
+                unsafe {
+                    let _ = PostMessageW(host, WM_DK_SETTINGS, WPARAM(0), LPARAM(0));
                 }
                 true
             }
@@ -622,18 +639,23 @@ unsafe fn paint_window(hdc: HDC, hwnd: HWND) {
             bottom: TYPING_HEIGHT,
         };
     }
-    // Spec §9: post-it yellow #FFF9C4 (COLORREF is 0x00BBGGRR).
-    let brush = CreateSolidBrush(COLORREF(0x00_C4_F9_FF));
+    // Spec §9: per key-set colours (`keys.windowBg` / `windowFg`).
+    let (bg, fg) = if let Ok(v) = view().lock() {
+        (COLORREF(v.bg), COLORREF(v.fg))
+    } else {
+        (COLORREF(0x00_C4_F9_FF), COLORREF(0x00_22_22_22))
+    };
+    let brush = CreateSolidBrush(bg);
     FillRect(hdc, &rect, brush);
     let _ = SetBkMode(hdc, TRANSPARENT);
-    let _ = SetTextColor(hdc, COLORREF(0x00_22_22_22));
+    let _ = SetTextColor(hdc, fg);
     let font = GetStockObject(DEFAULT_GUI_FONT);
     let old = SelectObject(hdc, font);
 
-    let (rows, body_from) = if let Ok(v) = view().lock() {
-        (v.rows.clone(), v.body_from)
+    let (rows, body_from, fg) = if let Ok(v) = view().lock() {
+        (v.rows.clone(), v.body_from, COLORREF(v.fg))
     } else {
-        (Vec::new(), None)
+        (Vec::new(), None, COLORREF(0x00_22_22_22))
     };
 
     // Title column starts after the widest key (proportional font — char padding won't align).
@@ -651,7 +673,7 @@ unsafe fn paint_window(hdc: HDC, hwnd: HWND) {
     let mut y = 12i32;
     for (i, row) in rows.iter().enumerate() {
         if body_from == Some(i) || row.title.starts_with("--------") {
-            let pen = CreatePen(PS_SOLID, 1, COLORREF(0x00_22_22_22));
+            let pen = CreatePen(PS_SOLID, 1, fg);
             let old_pen = SelectObject(hdc, pen);
             let _ = MoveToEx(hdc, PAD_X, y + 8, None);
             let _ = LineTo(hdc, (rect.right - PAD_X).max(PAD_X + 40), y + 8);
@@ -764,6 +786,7 @@ fn legend_option_row(bindings: &KeyBindings, id: LegendId) -> TypingRow {
         LegendId::Search => t(keys::APP_TYPING_LEGEND_SEARCH),
         LegendId::DigitBack => t(keys::APP_TYPING_LEGEND_DIGIT_BACK),
         LegendId::Cancel => t(keys::APP_TYPING_LEGEND_ESC),
+        LegendId::Settings => t(keys::APP_TYPING_LEGEND_SETTINGS),
     };
     TypingRow {
         key: bindings.display_label(id.key_role()),
@@ -1100,7 +1123,7 @@ pub fn run(mut config: AppConfig) -> anyhow::Result<()> {
         #[cfg(debug_assertions)]
         info!("debug: start key accepts VK_ADD and VK_OEM_PLUS; legacy slash search accepts VK_DIVIDE and VK_OEM_2");
         #[cfg(not(debug_assertions))]
-        info!("legacy slash search accepts VK_DIVIDE and VK_OEM_2 when bound to either; default search is VK_OEM_5 (\\)");
+        info!("legacy slash search accepts VK_DIVIDE and VK_OEM_2 when bound to either; default search is Tab");
 
         if config.open_settings_on_start {
             info!("first run — opening settings");

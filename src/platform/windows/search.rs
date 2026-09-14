@@ -17,15 +17,15 @@ use windows::Win32::UI::WindowsAndMessaging::{
     CallWindowProcW, CreateWindowExW, DefWindowProcW, DestroyWindow, GetClientRect, GetCursorPos,
     GetWindowLongPtrW, GetWindowTextLengthW, GetWindowTextW, LoadCursorW, MoveWindow, PostMessageW,
     RegisterClassExW, SendMessageW, SetWindowLongPtrW, SetWindowTextW, ShowWindow, GWLP_USERDATA,
-    GWLP_WNDPROC, IDC_ARROW, SW_SHOWNORMAL, WINDOW_EX_STYLE, WINDOW_STYLE, WM_COMMAND,
-    WM_DESTROY, WM_KEYDOWN, WM_KEYUP, WM_LBUTTONUP, WM_SETFONT, WM_SIZE, WNDCLASSEXW, WNDPROC,
-    WS_BORDER, WS_CAPTION, WS_CHILD, WS_CLIPCHILDREN, WS_MINIMIZEBOX, WS_OVERLAPPED, WS_SYSMENU,
-    WS_TABSTOP, WS_THICKFRAME, WS_VISIBLE, WS_VSCROLL,
+    GWLP_WNDPROC, IDC_ARROW, SW_SHOWNORMAL, WINDOW_EX_STYLE, WINDOW_STYLE, WM_COMMAND, WM_DESTROY,
+    WM_KEYDOWN, WM_KEYUP, WM_LBUTTONUP, WM_SETFONT, WM_SIZE, WNDCLASSEXW, WNDPROC, WS_BORDER,
+    WS_CAPTION, WS_CHILD, WS_CLIPCHILDREN, WS_MINIMIZEBOX, WS_OVERLAPPED, WS_SYSMENU, WS_TABSTOP,
+    WS_THICKFRAME, WS_VISIBLE, WS_VSCROLL,
 };
 
 use crate::core::config::AppConfig;
 use crate::core::i18n::{keys as i18n_keys, tf};
-use crate::core::search::search_slots;
+use crate::core::search::{search_slots, search_window_keydown, SearchWindowAction};
 use crate::core::slots::Slot;
 
 use super::icon::load_class_icons;
@@ -39,10 +39,6 @@ const EN_CHANGE: u16 = 0x0300;
 const LBN_DBLCLK: u16 = 2;
 const ES_AUTOHSCROLL: u32 = 0x0080;
 const LBS_NOTIFY: u32 = 0x0001;
-const VK_UP: u32 = 0x26;
-const VK_DOWN: u32 = 0x28;
-const VK_RETURN: u32 = 0x0D;
-const VK_ESCAPE: u32 = 0x1B;
 
 // LISTBOX messages
 const LB_ADDSTRING: u32 = 0x0180;
@@ -67,10 +63,9 @@ struct SearchState {
     list_prev: Option<WNDPROC>,
     /// Slot ids currently shown in the listbox, in order.
     visible_ids: Vec<String>,
-    /// Resolved `keys.openWorkdir` VK (same role as the typing window).
-    owd_vk: u16,
-    /// True from that VK's keydown until either another key interrupts it
-    /// (used as a modifier — e.g. Ctrl+A) or it fires on keyup (tap-alone).
+    keys: crate::core::keys::ResolvedKeys,
+    /// True from Open-workdir VK's keydown until either another key interrupts
+    /// it or it fires on keyup (tap-alone).
     owd_pending: bool,
 }
 
@@ -138,7 +133,7 @@ pub fn open(host: HWND, config: &AppConfig, exe_dir: &std::path::Path) -> anyhow
             None,
         )?;
 
-        let owd_vk = config.settings.keys.resolved().open_workdir;
+        let resolved = config.settings.keys.resolved();
         let state = Box::new(SearchState {
             host,
             config: config.clone(),
@@ -149,7 +144,7 @@ pub fn open(host: HWND, config: &AppConfig, exe_dir: &std::path::Path) -> anyhow
             edit_prev: None,
             list_prev: None,
             visible_ids: Vec::new(),
-            owd_vk,
+            keys: resolved,
             owd_pending: false,
         });
         let state_ptr = Box::into_raw(state);
@@ -266,7 +261,7 @@ unsafe fn create_children(parent: HWND, state_ptr: *mut SearchState) -> anyhow::
     state.edit = edit;
     state.list = list;
     state.hint = hint;
-    set_hint_text(hint, state.owd_vk, &state.config);
+    set_hint_text(hint, state.keys.open_workdir, &state.config);
 
     let prev_edit = SetWindowLongPtrW(
         edit,
@@ -369,11 +364,20 @@ unsafe fn launch_selection(state_ptr: *mut SearchState) {
 
 /// Open the target's working folder only (registered `workdir`, else the
 /// Path's parent). Same role/behaviour as the typing window's Open-workdir
-/// key (`keys.openWorkdir`) — URL / `chain:` have no folder and just fail.
+/// Path's parent). Same role/behaviour as the typing window's Open-workdir
+/// key (`keys.openWorkdir`) — a URL has no folder; `chain:` opens each
+/// member's folder in order.
 unsafe fn open_selection_workdir(state_ptr: *mut SearchState) {
     match resolve_selection(state_ptr) {
         Some(slot) => finish_launch(state_ptr, &slot, true),
         None => warn!("Search: nothing selected (open folder)"),
+    }
+}
+
+unsafe fn close_search() {
+    let pb = HWND(SEARCH_HWND.load(Ordering::SeqCst) as *mut _);
+    if !pb.0.is_null() {
+        let _ = DestroyWindow(pb);
     }
 }
 
@@ -432,6 +436,20 @@ unsafe extern "system" fn list_subclass(
         (*state_ptr).list_prev
     };
 
+    if !state_ptr.is_null() && msg == WM_KEYDOWN {
+        match search_window_keydown(wparam.0 as u16, &(*state_ptr).keys) {
+            SearchWindowAction::Close => {
+                close_search();
+                return LRESULT(0);
+            }
+            SearchWindowAction::Launch => {
+                launch_selection(state_ptr);
+                return LRESULT(0);
+            }
+            SearchWindowAction::NavUp | SearchWindowAction::NavDown | SearchWindowAction::Pass => {}
+        }
+    }
+
     // Spec: click launches. Let the listbox update selection first, then run.
     if !state_ptr.is_null() && msg == WM_LBUTTONUP {
         let result = match prev {
@@ -459,22 +477,29 @@ unsafe extern "system" fn edit_subclass(
 ) -> LRESULT {
     let state_ptr = GetWindowLongPtrW(hwnd, GWLP_USERDATA) as *mut SearchState;
     if !state_ptr.is_null() && msg == WM_KEYDOWN {
-        let vk = wparam.0 as u32;
-        let owd_vk = (*state_ptr).owd_vk;
+        let vk = wparam.0 as u16;
         // Tap-alone tracking for the Open-workdir role key (same role as the
         // typing window's Ctrl). If any other key arrives first, this VK was
         // held as a modifier (Ctrl+A / Ctrl+C / …) — do not fire on its keyup.
-        (*state_ptr).owd_pending = vk as u16 == owd_vk;
+        (*state_ptr).owd_pending = (*state_ptr).keys.is_open_workdir(vk);
         let list = (*state_ptr).list;
-        match vk {
-            VK_UP => {
+        match search_window_keydown(vk, &(*state_ptr).keys) {
+            SearchWindowAction::Close => {
+                close_search();
+                return LRESULT(0);
+            }
+            SearchWindowAction::Launch => {
+                launch_selection(state_ptr);
+                return LRESULT(0);
+            }
+            SearchWindowAction::NavUp => {
                 let sel = SendMessageW(list, LB_GETCURSEL, WPARAM(0), LPARAM(0)).0;
                 if sel > 0 {
                     let _ = SendMessageW(list, LB_SETCURSEL, WPARAM((sel - 1) as usize), LPARAM(0));
                 }
                 return LRESULT(0);
             }
-            VK_DOWN => {
+            SearchWindowAction::NavDown => {
                 let sel = SendMessageW(list, LB_GETCURSEL, WPARAM(0), LPARAM(0)).0;
                 let count = SendMessageW(list, LB_GETCOUNT, WPARAM(0), LPARAM(0)).0;
                 if sel + 1 < count {
@@ -482,23 +507,12 @@ unsafe extern "system" fn edit_subclass(
                 }
                 return LRESULT(0);
             }
-            VK_RETURN => {
-                launch_selection(state_ptr);
-                return LRESULT(0);
-            }
-            VK_ESCAPE => {
-                let pb = HWND(SEARCH_HWND.load(Ordering::SeqCst) as *mut _);
-                if !pb.0.is_null() {
-                    let _ = DestroyWindow(pb);
-                }
-                return LRESULT(0);
-            }
-            _ => {}
+            SearchWindowAction::Pass => {}
         }
     } else if !state_ptr.is_null() && msg == WM_KEYUP {
-        let vk = wparam.0 as u32;
+        let vk = wparam.0 as u16;
         let state = &mut *state_ptr;
-        if vk as u16 == state.owd_vk && state.owd_pending {
+        if state.keys.is_open_workdir(vk) && state.owd_pending {
             state.owd_pending = false;
             open_selection_workdir(state_ptr);
             return LRESULT(0);

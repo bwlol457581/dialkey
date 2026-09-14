@@ -8,7 +8,7 @@ use crate::core::keys::KeyRole;
 use crate::core::sequence::Mode;
 
 /// All legend items (fixed set). Window always reserves this many option rows.
-pub const LEGEND_ITEM_COUNT: usize = 5;
+pub const LEGEND_ITEM_COUNT: usize = 6;
 
 /// Next-digit decade (`{prefix}0`…`{prefix}9`).
 pub const DIAL_ROWS: usize = 10;
@@ -23,6 +23,7 @@ pub enum LegendId {
     Search,
     DigitBack,
     Cancel,
+    Settings,
 }
 
 impl LegendId {
@@ -32,6 +33,7 @@ impl LegendId {
         LegendId::Search,
         LegendId::DigitBack,
         LegendId::Cancel,
+        LegendId::Settings,
     ];
 
     pub fn as_str(self) -> &'static str {
@@ -41,6 +43,7 @@ impl LegendId {
             LegendId::Search => "search",
             LegendId::DigitBack => "digitBack",
             LegendId::Cancel => "cancel",
+            LegendId::Settings => "settings",
         }
     }
 
@@ -51,6 +54,7 @@ impl LegendId {
             "search" => Some(LegendId::Search),
             "digitBack" | "digit_back" => Some(LegendId::DigitBack),
             "cancel" => Some(LegendId::Cancel),
+            "settings" => Some(LegendId::Settings),
             _ => None,
         }
     }
@@ -62,6 +66,7 @@ impl LegendId {
             LegendId::Search => KeyRole::Search,
             LegendId::DigitBack => KeyRole::DigitBack,
             LegendId::Cancel => KeyRole::Cancel,
+            LegendId::Settings => KeyRole::Settings,
         }
     }
 }
@@ -115,6 +120,7 @@ fn default_idle_order() -> Vec<String> {
         "start".into(),
         "search".into(),
         "cancel".into(),
+        "settings".into(),
         "openWorkdir".into(),
         "digitBack".into(),
     ]
@@ -130,12 +136,13 @@ fn default_multi_order() -> Vec<String> {
         "search".into(),
         "digitBack".into(),
         "cancel".into(),
+        "settings".into(),
         "start".into(),
     ]
 }
 
 fn default_multi_hidden() -> Vec<String> {
-    vec!["start".into()]
+    vec!["start".into(), "settings".into()]
 }
 
 impl LegendSettings {
@@ -146,13 +153,21 @@ impl LegendSettings {
             self.idle.order = default_idle_order();
             self.idle.hidden = default_idle_hidden();
         } else {
-            normalize_order_and_hidden(&mut self.idle, &default_idle_order());
+            normalize_order_and_hidden(
+                &mut self.idle,
+                &default_idle_order(),
+                &default_idle_hidden(),
+            );
         }
         if self.multi.order.is_empty() && self.multi.hidden.is_empty() {
             self.multi.order = default_multi_order();
             self.multi.hidden = default_multi_hidden();
         } else {
-            normalize_order_and_hidden(&mut self.multi, &default_multi_order());
+            normalize_order_and_hidden(
+                &mut self.multi,
+                &default_multi_order(),
+                &default_multi_hidden(),
+            );
         }
     }
 
@@ -182,7 +197,16 @@ impl LegendSettings {
     }
 }
 
-fn normalize_order_and_hidden(page: &mut LegendPage, default_order: &[String]) {
+fn normalize_order_and_hidden(
+    page: &mut LegendPage,
+    default_order: &[String],
+    default_hidden: &[String],
+) {
+    let original: std::collections::HashSet<String> = page
+        .order
+        .iter()
+        .filter_map(|s| LegendId::parse(s).map(|id| id.as_str().to_string()))
+        .collect();
     let mut seen = std::collections::HashSet::new();
     let mut order = Vec::new();
     for s in page.order.iter().chain(default_order.iter()) {
@@ -203,6 +227,18 @@ fn normalize_order_and_hidden(page: &mut LegendPage, default_order: &[String]) {
             continue;
         };
         let key = id.as_str();
+        if hseen.insert(key) {
+            hidden.push(key.to_string());
+        }
+    }
+    for s in default_hidden {
+        let Some(id) = LegendId::parse(s) else {
+            continue;
+        };
+        let key = id.as_str();
+        if original.contains(key) {
+            continue;
+        }
         if hseen.insert(key) {
             hidden.push(key.to_string());
         }
@@ -263,7 +299,15 @@ mod tests {
     fn default_idle_hides_open_and_back() {
         let s = LegendSettings::default();
         let v = s.visible(Mode::Idle);
-        assert_eq!(v, vec![LegendId::Start, LegendId::Search, LegendId::Cancel]);
+        assert_eq!(
+            v,
+            vec![
+                LegendId::Start,
+                LegendId::Search,
+                LegendId::Cancel,
+                LegendId::Settings
+            ]
+        );
     }
 
     #[test]
@@ -295,7 +339,16 @@ mod tests {
         assert_eq!(s.idle.order[1], "start");
         assert!(s.idle.order.contains(&"cancel".to_string()));
         assert_eq!(s.idle.order.len(), LEGEND_ITEM_COUNT);
-        assert_eq!(s.idle.hidden, vec!["cancel".to_string()]);
+        assert!(s.idle.order.contains(&"settings".to_string()));
+        assert!(!s.idle.hidden.contains(&"settings".to_string()));
+        assert_eq!(
+            s.idle.hidden,
+            vec![
+                "cancel".to_string(),
+                "openWorkdir".to_string(),
+                "digitBack".to_string()
+            ]
+        );
         assert_eq!(s.multi.order.len(), LEGEND_ITEM_COUNT);
     }
 

@@ -105,18 +105,19 @@ still drop keys — better than Bluetooth, not the same as wired.
 A USB-C cable on a wireless pad is often **charge only** — the pad can
 still sleep unless you switch it to wired mode.
 
-**ON key** (Settings → **Advanced** → **Keys**)
+**ON key** (Settings → **Advanced** → **Keys**, on the selected key set)
 
-On a device with that trait, select the matching key set (Numpad or
-Keyboard), turn the checkbox on, and Capture its ON key (often Esc on
-the TK-029S). Leave it off if that set does not need it. Numpad and
-Keyboard store ON separately.
+On a pad with that trait, turn the checkbox on and Capture the pad’s ON
+key (often Esc on the TK-029S). Leave it off on a wired pad. Shipped
+**Numpad**: checkbox on, Esc. Shipped **Keyboard**: checkbox off, Esc
+(Cancel is `-` on both sets, so turning ON on does not clash with Esc).
 
 1. Open with X2.
 2. Press ON (swallowed: it does not cancel, launch, or type into the app).
 3. Then `+` or a digit as usual.
 
-If ON is Esc, Capture Cancel onto another key first.
+If ON is Esc, Capture Cancel onto another key first (the shipped
+keyboard set already uses `-`).
 
 On some numpads, waking from sleep takes a moment. Watch the typing
 window and make sure the keys you pressed actually registered.
@@ -145,6 +146,10 @@ Turn on **Advanced**, then switch the **Key set** to **Keyboard**
 uses the main `+` key (`VK_OEM_PLUS`). Capture is still there if that
 key is missing. Switch back with X1 then `t`, or tray → Keys → Numpad.
 DialKey is built around an external numpad; laptop use is a fallback.
+
+The keyboard set’s typing window is **green** (`#C6E0B4`). The numpad
+set stays **sticky-note yellow**. That is how you tell which set is live.
+Search and Settings stay white.
 
 ### The typing window does not appear over a fullscreen game
 
@@ -190,8 +195,11 @@ browser.
 An advanced Path value that launches several other slots in order, e.g.
 `chain:11,20,31`. Only **one level** deep — if a target is itself a `chain:`,
 that target is skipped. Cycles cannot be saved. Missing targets warn in Settings
-and fail at run time (other targets still run). Most users do not need this;
-register each tool as its own slot unless you truly want a one-key bundle.
+and fail at run time (other targets still run). **Open folder** (`.` on the
+shipped numpad set)
+opens each member’s working folder in that same order; URL members and nested
+chains are skipped. Most users do not need this; register each tool as its own
+slot unless you truly want a one-key bundle.
 
 ### Why is minute `{min}` instead of `{mm}`?
 

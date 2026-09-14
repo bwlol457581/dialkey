@@ -20,6 +20,9 @@ pub struct KeyBindings {
     /// Delete last digit; empty multi → Idle; Idle → close (default →).
     #[serde(default = "default_digit_back_key")]
     pub digit_back: String,
+    /// Open Settings from the typing window. Empty = unbound (keyboard shipped).
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub settings: String,
     /// Optional typing-window legend labels (max 3 chars). Empty = VK short label.
     #[serde(
         default = "default_start_label",
@@ -51,6 +54,14 @@ pub struct KeyBindings {
         skip_serializing_if = "String::is_empty"
     )]
     pub digit_back_label: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub settings_label: String,
+    /// Typing-window background `#RRGGBB`. Empty = shipped colour for this set.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub window_bg: String,
+    /// Typing-window text `#RRGGBB`. Empty = shipped colour for this set.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub window_fg: String,
     /// Swallow this VK while the typing window is open (wireless pad ON).
     /// Off by default — wired pads do not need it.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
@@ -75,6 +86,81 @@ pub struct KeyBindings {
 /// Shipped set ids. UI shows two; JSON is a list so more can be added later.
 pub const KEY_SET_NUMPAD: &str = "numpad";
 pub const KEY_SET_KEYBOARD: &str = "keyboard";
+
+/// Shipped typing-window colours (`#RRGGBB`).
+pub const SHIPPED_WINDOW_BG_NUMPAD: &str = "#FFF9C4";
+pub const SHIPPED_WINDOW_BG_KEYBOARD: &str = "#C6E0B4";
+pub const SHIPPED_WINDOW_FG: &str = "#222222";
+
+pub fn shipped_window_bg(set_id: &str) -> &'static str {
+    if set_id == KEY_SET_KEYBOARD {
+        SHIPPED_WINDOW_BG_KEYBOARD
+    } else {
+        SHIPPED_WINDOW_BG_NUMPAD
+    }
+}
+
+/// Shipped Settings VK. Numpad `/` is `VK_DIVIDE`; main keyboard `/` is `VK_OEM_2`.
+fn shipped_settings_key(set_id: &str) -> &'static str {
+    if set_id == KEY_SET_KEYBOARD {
+        "VK_OEM_2"
+    } else {
+        "VK_DIVIDE"
+    }
+}
+
+fn shipped_settings_label() -> String {
+    "/".into()
+}
+
+/// Action-key VKs on a stored set, excluding Settings (used when filling Settings).
+fn stored_taken_vks(set: &KeySetStored) -> Vec<u16> {
+    let names = [
+        set.start.as_str(),
+        set.confirm.as_str(),
+        set.cancel.as_str(),
+        set.search.as_str(),
+        set.open_workdir.as_str(),
+        set.digit_back.as_str(),
+    ];
+    let mut out = Vec::with_capacity(8);
+    for name in names {
+        if let Some(vk) = parse_vk_name(name) {
+            if vk != 0 {
+                out.push(vk);
+            }
+        }
+    }
+    if set.wake_enabled {
+        if let Some(vk) = parse_vk_name(&set.wake) {
+            if vk != 0 {
+                out.push(vk);
+            }
+        }
+    }
+    out
+}
+
+fn settings_vk_collides(set: &KeySetStored) -> bool {
+    let Some(sv) = parse_vk_name(&set.settings) else {
+        return false;
+    };
+    sv != 0 && stored_taken_vks(set).contains(&sv)
+}
+
+/// Both shipped sets show the ON (wake) checkbox. Unknown ids keep the control.
+pub fn set_supports_wake(_id: &str) -> bool {
+    true
+}
+
+fn shipped_keyboard_wake_key() -> String {
+    "VK_ESCAPE".into()
+}
+
+/// Pre-1.0.2 wrote this dummy on the keyboard set because ON had no UI.
+fn is_legacy_keyboard_wake_placeholder(name: &str) -> bool {
+    name.eq_ignore_ascii_case("VK_OEM_MINUS")
+}
 
 fn default_key_set_numpad() -> String {
     KEY_SET_NUMPAD.into()
@@ -116,6 +202,8 @@ pub struct KeySetStored {
     pub open_workdir: String,
     #[serde(default = "default_digit_back_key")]
     pub digit_back: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub settings: String,
     #[serde(
         default = "default_start_label",
         skip_serializing_if = "String::is_empty"
@@ -146,6 +234,12 @@ pub struct KeySetStored {
         skip_serializing_if = "String::is_empty"
     )]
     pub digit_back_label: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub settings_label: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub window_bg: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub window_fg: String,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub wake_enabled: bool,
     #[serde(default = "default_wake_key")]
@@ -193,23 +287,44 @@ pub fn clamp_key_display(raw: &str) -> String {
     raw.trim().chars().take(3).collect()
 }
 
+/// Parse `#RRGGBB` (optional `#`). None if empty or malformed.
+pub fn parse_rgb_hex(raw: &str) -> Option<(u8, u8, u8)> {
+    let s = raw.trim();
+    let hex = s.strip_prefix('#').unwrap_or(s);
+    if hex.len() != 6 || !hex.chars().all(|c| c.is_ascii_hexdigit()) {
+        return None;
+    }
+    let r = u8::from_str_radix(&hex[0..2], 16).ok()?;
+    let g = u8::from_str_radix(&hex[2..4], 16).ok()?;
+    let b = u8::from_str_radix(&hex[4..6], 16).ok()?;
+    Some((r, g, b))
+}
+
+fn rgb_to_colorref((r, g, b): (u8, u8, u8)) -> u32 {
+    (b as u32) << 16 | (g as u32) << 8 | r as u32
+}
+
 impl Default for KeyBindings {
     fn default() -> Self {
         Self {
             start: "VK_ADD".into(),
             confirm: "VK_RETURN".into(),
-            cancel: "VK_ESCAPE".into(),
-            search: "VK_OEM_5".into(),
-            open_workdir: default_open_workdir_key(),
-            digit_back: default_digit_back_key(),
+            cancel: "VK_SUBTRACT".into(),
+            search: "VK_TAB".into(),
+            open_workdir: "VK_DECIMAL".into(),
+            digit_back: "VK_BACK".into(),
+            settings: shipped_settings_key(KEY_SET_NUMPAD).into(),
             start_label: default_start_label(),
             confirm_label: default_confirm_label(),
-            cancel_label: default_cancel_label(),
-            search_label: default_search_label(),
-            open_workdir_label: default_open_workdir_label(),
-            digit_back_label: default_digit_back_label(),
-            wake_enabled: false,
-            wake: default_wake_key(),
+            cancel_label: "-".into(),
+            search_label: "Tab".into(),
+            open_workdir_label: ".".into(),
+            digit_back_label: "Bks".into(),
+            settings_label: shipped_settings_label(),
+            window_bg: SHIPPED_WINDOW_BG_NUMPAD.into(),
+            window_fg: SHIPPED_WINDOW_FG.into(),
+            wake_enabled: true,
+            wake: "VK_ESCAPE".into(),
             active: default_key_set_numpad(),
             sets: Vec::new(),
         }
@@ -222,9 +337,10 @@ impl KeyBindings {
             start: parse_vk_name(&self.start).unwrap_or(0x6B),
             confirm: parse_vk_name(&self.confirm).unwrap_or(0x0D),
             cancel: parse_vk_name(&self.cancel).unwrap_or(0x1B),
-            search: parse_vk_name(&self.search).unwrap_or(VK_OEM_5),
-            open_workdir: parse_vk_name(&self.open_workdir).unwrap_or(VK_CONTROL),
-            digit_back: parse_vk_name(&self.digit_back).unwrap_or(0x27),
+            search: parse_vk_name(&self.search).unwrap_or(0x09),
+            open_workdir: parse_vk_name(&self.open_workdir).unwrap_or(VK_DECIMAL),
+            digit_back: parse_vk_name(&self.digit_back).unwrap_or(0x08),
+            settings: parse_vk_name(&self.settings).unwrap_or(0),
             wake: parse_vk_name(&self.wake).unwrap_or(VK_SUBTRACT),
             wake_enabled: self.wake_enabled,
         }
@@ -239,6 +355,7 @@ impl KeyBindings {
             KeyRole::Search => self.search_label.as_str(),
             KeyRole::OpenWorkdir => self.open_workdir_label.as_str(),
             KeyRole::DigitBack => self.digit_back_label.as_str(),
+            KeyRole::Settings => self.settings_label.as_str(),
         }
     }
 
@@ -250,6 +367,7 @@ impl KeyBindings {
             KeyRole::Search => self.search.as_str(),
             KeyRole::OpenWorkdir => self.open_workdir.as_str(),
             KeyRole::DigitBack => self.digit_back.as_str(),
+            KeyRole::Settings => self.settings.as_str(),
         }
     }
 
@@ -261,6 +379,7 @@ impl KeyBindings {
             KeyRole::Search => self.search = name,
             KeyRole::OpenWorkdir => self.open_workdir = name,
             KeyRole::DigitBack => self.digit_back = name,
+            KeyRole::Settings => self.settings = name,
         }
     }
 
@@ -273,6 +392,7 @@ impl KeyBindings {
             KeyRole::Search => r.search,
             KeyRole::OpenWorkdir => r.open_workdir,
             KeyRole::DigitBack => r.digit_back,
+            KeyRole::Settings => r.settings,
         }
     }
 
@@ -286,6 +406,7 @@ impl KeyBindings {
             KeyRole::Search => self.search_label = v,
             KeyRole::OpenWorkdir => self.open_workdir_label = v,
             KeyRole::DigitBack => self.digit_back_label = v,
+            KeyRole::Settings => self.settings_label = v,
         }
     }
 
@@ -293,19 +414,26 @@ impl KeyBindings {
     pub fn display_label(&self, role: KeyRole) -> String {
         let custom = clamp_key_display(self.label_raw(role));
         if custom.is_empty() {
-            let r = self.resolved();
-            let vk = match role {
-                KeyRole::Start => r.start,
-                KeyRole::Confirm => r.confirm,
-                KeyRole::Cancel => r.cancel,
-                KeyRole::Search => r.search,
-                KeyRole::OpenWorkdir => r.open_workdir,
-                KeyRole::DigitBack => r.digit_back,
-            };
-            vk_short_label(vk)
+            let vk = self.resolved_vk(role);
+            if vk == 0 {
+                String::new()
+            } else {
+                vk_short_label(vk)
+            }
         } else {
             custom
         }
+    }
+
+    /// Background/text as Windows COLORREF (`0x00BBGGRR`). Broken values use shipped colours.
+    pub fn typing_colorref(&self) -> (u32, u32) {
+        let bg = parse_rgb_hex(&self.window_bg)
+            .or_else(|| parse_rgb_hex(shipped_window_bg(&self.active)))
+            .unwrap_or((0xFF, 0xF9, 0xC4));
+        let fg = parse_rgb_hex(&self.window_fg)
+            .or_else(|| parse_rgb_hex(SHIPPED_WINDOW_FG))
+            .unwrap_or((0x22, 0x22, 0x22));
+        (rgb_to_colorref(bg), rgb_to_colorref(fg))
     }
 
     fn snapshot(&self, id: &str, chord: &str) -> KeySetStored {
@@ -318,12 +446,16 @@ impl KeyBindings {
             search: self.search.clone(),
             open_workdir: self.open_workdir.clone(),
             digit_back: self.digit_back.clone(),
+            settings: self.settings.clone(),
             start_label: self.start_label.clone(),
             confirm_label: self.confirm_label.clone(),
             cancel_label: self.cancel_label.clone(),
             search_label: self.search_label.clone(),
             open_workdir_label: self.open_workdir_label.clone(),
             digit_back_label: self.digit_back_label.clone(),
+            settings_label: self.settings_label.clone(),
+            window_bg: self.window_bg.clone(),
+            window_fg: self.window_fg.clone(),
             wake_enabled: self.wake_enabled,
             wake: self.wake.clone(),
         }
@@ -336,16 +468,20 @@ impl KeyBindings {
         self.search = stored.search.clone();
         self.open_workdir = stored.open_workdir.clone();
         self.digit_back = stored.digit_back.clone();
+        self.settings = stored.settings.clone();
         self.start_label = stored.start_label.clone();
         self.confirm_label = stored.confirm_label.clone();
         self.cancel_label = stored.cancel_label.clone();
         self.search_label = stored.search_label.clone();
         self.open_workdir_label = stored.open_workdir_label.clone();
         self.digit_back_label = stored.digit_back_label.clone();
+        self.settings_label = stored.settings_label.clone();
+        self.window_bg = stored.window_bg.clone();
+        self.window_fg = stored.window_fg.clone();
         self.wake_enabled = stored.wake_enabled;
         self.wake = if stored.wake.is_empty() {
             if stored.id == KEY_SET_KEYBOARD {
-                "VK_OEM_MINUS".into()
+                shipped_keyboard_wake_key()
             } else {
                 default_wake_key()
             }
@@ -355,24 +491,85 @@ impl KeyBindings {
         self.active = stored.id.clone();
     }
 
+    /// Whether Settings should show the ON checkbox for the live set.
+    pub fn wake_configurable(&self) -> bool {
+        set_supports_wake(&self.active)
+    }
+
+    fn numpad_shipped() -> KeySetStored {
+        KeySetStored {
+            id: KEY_SET_NUMPAD.into(),
+            chord: default_numpad_chord(),
+            start: "VK_ADD".into(),
+            confirm: "VK_RETURN".into(),
+            cancel: "VK_SUBTRACT".into(),
+            search: "VK_TAB".into(),
+            open_workdir: "VK_DECIMAL".into(),
+            digit_back: "VK_BACK".into(),
+            settings: shipped_settings_key(KEY_SET_NUMPAD).into(),
+            start_label: default_start_label(),
+            confirm_label: default_confirm_label(),
+            cancel_label: "-".into(),
+            search_label: "Tab".into(),
+            open_workdir_label: ".".into(),
+            digit_back_label: "Bks".into(),
+            settings_label: shipped_settings_label(),
+            window_bg: SHIPPED_WINDOW_BG_NUMPAD.into(),
+            window_fg: SHIPPED_WINDOW_FG.into(),
+            wake_enabled: true,
+            wake: "VK_ESCAPE".into(),
+        }
+    }
+
     fn keyboard_shipped() -> KeySetStored {
         KeySetStored {
             id: KEY_SET_KEYBOARD.into(),
             chord: default_keyboard_chord(),
             start: "VK_OEM_PLUS".into(),
             confirm: "VK_RETURN".into(),
-            cancel: "VK_ESCAPE".into(),
-            search: "VK_OEM_5".into(),
-            open_workdir: default_open_workdir_key(),
-            digit_back: default_digit_back_key(),
-            start_label: default_start_label(),
+            cancel: "VK_OEM_MINUS".into(),
+            search: "VK_TAB".into(),
+            open_workdir: "VK_OEM_PERIOD".into(),
+            digit_back: "VK_BACK".into(),
+            settings: shipped_settings_key(KEY_SET_KEYBOARD).into(),
+            start_label: "=".into(),
             confirm_label: default_confirm_label(),
-            cancel_label: default_cancel_label(),
-            search_label: default_search_label(),
-            open_workdir_label: default_open_workdir_label(),
-            digit_back_label: default_digit_back_label(),
+            cancel_label: "-".into(),
+            search_label: "Tab".into(),
+            open_workdir_label: ".".into(),
+            digit_back_label: "Bks".into(),
+            settings_label: shipped_settings_label(),
+            window_bg: SHIPPED_WINDOW_BG_KEYBOARD.into(),
+            window_fg: SHIPPED_WINDOW_FG.into(),
             wake_enabled: false,
-            wake: "VK_OEM_MINUS".into(),
+            wake: shipped_keyboard_wake_key(),
+        }
+    }
+
+    fn fill_set_missing(set: &mut KeySetStored) {
+        let empty = set.settings.trim().is_empty();
+        let collides = settings_vk_collides(set);
+        if empty || collides {
+            let candidate = shipped_settings_key(&set.id);
+            if stored_taken_vks(set).contains(&parse_vk_name(candidate).unwrap_or(0)) {
+                set.settings.clear();
+                set.settings_label.clear();
+            } else {
+                set.settings = candidate.into();
+                set.settings_label = shipped_settings_label();
+            }
+        }
+        if set.window_bg.trim().is_empty() {
+            set.window_bg = shipped_window_bg(&set.id).into();
+        }
+        if set.window_fg.trim().is_empty() {
+            set.window_fg = SHIPPED_WINDOW_FG.into();
+        }
+        if set.id == KEY_SET_KEYBOARD
+            && !set.wake_enabled
+            && (set.wake.trim().is_empty() || is_legacy_keyboard_wake_placeholder(&set.wake))
+        {
+            set.wake = shipped_keyboard_wake_key();
         }
     }
 
@@ -383,14 +580,16 @@ impl KeyBindings {
         }
         if self.wake.is_empty() {
             self.wake = if self.active == KEY_SET_KEYBOARD {
-                "VK_OEM_MINUS".into()
+                shipped_keyboard_wake_key()
             } else {
                 default_wake_key()
             };
         }
         if self.sets.is_empty() {
-            let numpad = self.snapshot(KEY_SET_NUMPAD, &default_numpad_chord());
-            self.sets = vec![numpad, Self::keyboard_shipped()];
+            let mut numpad = self.snapshot(KEY_SET_NUMPAD, &default_numpad_chord());
+            Self::fill_set_missing(&mut numpad);
+            self.sets = vec![numpad.clone(), Self::keyboard_shipped()];
+            self.apply_stored(&numpad);
         } else {
             self.ensure_shipped_sets();
             if let Some(stored) = self.sets.iter().find(|s| s.id == self.active).cloned() {
@@ -420,11 +619,12 @@ impl KeyBindings {
             }
             if set.wake.is_empty() {
                 set.wake = if set.id == KEY_SET_KEYBOARD {
-                    "VK_OEM_MINUS".into()
+                    shipped_keyboard_wake_key()
                 } else {
                     default_wake_key()
                 };
             }
+            Self::fill_set_missing(set);
         }
     }
 
@@ -528,9 +728,7 @@ impl KeyBindings {
         let shipped = if id == KEY_SET_KEYBOARD {
             Self::keyboard_shipped()
         } else {
-            let mut n = KeyBindings::default();
-            n.normalize();
-            n.snapshot(KEY_SET_NUMPAD, &default_numpad_chord())
+            Self::numpad_shipped()
         };
         self.apply_stored(&shipped);
         self.active = id;
@@ -561,6 +759,7 @@ pub struct ResolvedKeys {
     pub search: u16,
     pub open_workdir: u16,
     pub digit_back: u16,
+    pub settings: u16,
     pub wake: u16,
     pub wake_enabled: bool,
 }
@@ -576,8 +775,10 @@ pub const VK_OEM_5: u16 = 0xDC;
 pub const VK_DECIMAL: u16 = 0x6E;
 /// Numpad `.` with NumLock off.
 pub const VK_DELETE: u16 = 0x2E;
-/// Numpad `-`. NumLock does not remap this key.
+/// Numpad `-`. NumLock does not remap this key. Shipped Cancel on the numpad set.
 pub const VK_SUBTRACT: u16 = 0x6D;
+/// Numpad `*`.
+pub const VK_MULTIPLY: u16 = 0x6A;
 /// Main-keyboard `-`.
 pub const VK_OEM_MINUS: u16 = 0xBD;
 
@@ -585,6 +786,27 @@ pub const VK_OEM_MINUS: u16 = 0xBD;
 pub const VK_CONTROL: u16 = 0x11;
 pub const VK_LCONTROL: u16 = 0xA2;
 pub const VK_RCONTROL: u16 = 0xA3;
+/// Left/right Windows keys. Shipped Open folder on the keyboard set.
+pub const VK_LWIN: u16 = 0x5B;
+pub const VK_RWIN: u16 = 0x5C;
+/// Main-keyboard `.`.
+pub const VK_OEM_PERIOD: u16 = 0xBE;
+pub const VK_TAB: u16 = 0x09;
+
+/// True when two VKs are the same physical assignment for uniqueness / match.
+/// Numpad `.` is `VK_DECIMAL` (NumLock on) / `VK_DELETE` (off). Win left/right.
+pub fn vks_equivalent(a: u16, b: u16) -> bool {
+    if a == b {
+        return true;
+    }
+    matches!(
+        (a, b),
+        (VK_DELETE, VK_DECIMAL)
+            | (VK_DECIMAL, VK_DELETE)
+            | (VK_LWIN, VK_RWIN)
+            | (VK_RWIN, VK_LWIN)
+    )
+}
 
 impl ResolvedKeys {
     /// Whether `vk` should act as the start (`+`) key.
@@ -610,11 +832,10 @@ impl ResolvedKeys {
         false
     }
 
-    /// Whether `vk` should open Search (`\` by default).
+    /// Whether `vk` should open Search (shipped Tab).
     ///
-    /// Spec default is main-keyboard `VK_OEM_5` (`\`). When the binding is still
-    /// the legacy slash family (`VK_DIVIDE` / `VK_OEM_2`), both slash keys are
-    /// accepted so older settings keep working.
+    /// When the binding is still the legacy slash family (`VK_DIVIDE` /
+    /// `VK_OEM_2`), both slash keys are accepted so older settings keep working.
     pub fn is_search(&self, vk: u16) -> bool {
         if vk == self.search {
             return true;
@@ -623,13 +844,17 @@ impl ResolvedKeys {
         search_is_slash_family && (vk == VK_DIVIDE || vk == VK_OEM_2)
     }
 
-    /// Whether `vk` should launch + open working folder (Ctrl by default).
+    pub fn is_cancel(&self, vk: u16) -> bool {
+        vks_equivalent(self.cancel, vk)
+    }
+
+    /// Whether `vk` should open the working folder only.
     ///
-    /// Spec default is `VK_CONTROL`. Low-level hooks typically deliver
-    /// `VK_LCONTROL` / `VK_RCONTROL`, so any of the three match when the binding
-    /// is in that family.
+    /// Shipped numpad is `.` (`VK_DECIMAL`; NumLock-off `VK_DELETE` also matches).
+    /// Shipped keyboard is `.` (`VK_OEM_PERIOD`). Ctrl left/right still match
+    /// when the binding is in the Ctrl family.
     pub fn is_open_workdir(&self, vk: u16) -> bool {
-        if vk == self.open_workdir {
+        if vks_equivalent(self.open_workdir, vk) {
             return true;
         }
         let family = self.open_workdir == VK_CONTROL
@@ -638,9 +863,14 @@ impl ResolvedKeys {
         family && (vk == VK_CONTROL || vk == VK_LCONTROL || vk == VK_RCONTROL)
     }
 
+    /// Whether `vk` should open Settings. Unbound (`0`) never matches.
+    pub fn is_settings(&self, vk: u16) -> bool {
+        self.settings != 0 && vks_equivalent(self.settings, vk)
+    }
+
     /// Configured wake VK when the checkbox is on.
     pub fn is_wake(&self, vk: u16) -> bool {
-        self.wake_enabled && vk == self.wake
+        self.wake_enabled && vks_equivalent(self.wake, vk)
     }
 }
 
@@ -658,6 +888,8 @@ fn vk_name_table() -> HashMap<&'static str, u16> {
         ("VK_CONTROL", VK_CONTROL),
         ("VK_LCONTROL", VK_LCONTROL),
         ("VK_RCONTROL", VK_RCONTROL),
+        ("VK_LWIN", VK_LWIN),
+        ("VK_RWIN", VK_RWIN),
         ("VK_BACK", 0x08),
         ("VK_DELETE", VK_DELETE),
         ("VK_INSERT", 0x2D),
@@ -815,13 +1047,19 @@ pub fn vk_to_name(vk: u16) -> String {
 /// Short label for typing-window legend (numpad-oriented).
 pub fn vk_short_label(vk: u16) -> String {
     match vk {
-        VK_ADD | VK_OEM_PLUS => "+".into(),
+        VK_ADD => "+".into(),
+        VK_OEM_PLUS => "=".into(),
         VK_DIVIDE | VK_OEM_2 => "/".into(),
         VK_OEM_5 => "\\".into(),
         VK_CONTROL | VK_LCONTROL | VK_RCONTROL => "Ctr".into(),
+        VK_LWIN | VK_RWIN => "Win".into(),
         0x1B => "ESC".into(),
         0x0D => "Enter".into(),
-        0x08 => "Bksp".into(),
+        VK_SUBTRACT | VK_OEM_MINUS => "-".into(),
+        VK_MULTIPLY => "*".into(),
+        VK_DECIMAL | VK_OEM_PERIOD => ".".into(),
+        0x08 => "Bks".into(),
+        0x2E => "Del".into(),
         0x20 => "Space".into(),
         0x09 => "Tab".into(),
         0x27 => "→".into(),
@@ -845,16 +1083,18 @@ pub enum KeyRole {
     Search,
     OpenWorkdir,
     DigitBack,
+    Settings,
 }
 
 impl KeyRole {
-    pub const ALL: [KeyRole; 6] = [
+    pub const ALL: [KeyRole; 7] = [
         KeyRole::Start,
         KeyRole::Confirm,
         KeyRole::Cancel,
         KeyRole::Search,
         KeyRole::OpenWorkdir,
         KeyRole::DigitBack,
+        KeyRole::Settings,
     ];
 
     pub fn label(self) -> &'static str {
@@ -865,7 +1105,14 @@ impl KeyRole {
             KeyRole::Search => "search",
             KeyRole::OpenWorkdir => "openWorkdir",
             KeyRole::DigitBack => "digitBack",
+            KeyRole::Settings => "settings",
         }
+    }
+
+    /// Digit-back uses NumLock-off nav VKs as Back. Settings uses the same
+    /// exception so Capture can swap with digit-back (gamepad style).
+    pub fn allows_reserved_digit(self) -> bool {
+        matches!(self, KeyRole::DigitBack | KeyRole::Settings)
     }
 }
 
@@ -897,8 +1144,9 @@ pub enum KeyBindingError {
 
 /// Validate exclusivity and digit reservation for action keys.
 ///
-/// `digitBack` may use NumLock-off nav VKs (e.g. `VK_RIGHT`) so → can backspace
-/// digits; those VKs are otherwise reserved as digits for other roles.
+/// `digitBack` and `settings` may use NumLock-off nav VKs (e.g. `VK_RIGHT` /
+/// `VK_LEFT`) so Capture can swap them; those VKs are otherwise reserved as
+/// digits for other roles.
 pub fn validate_key_bindings(keys: &KeyBindings) -> Result<(), KeyBindingError> {
     let roles = [
         (KeyRole::Start, keys.start.as_str()),
@@ -907,21 +1155,24 @@ pub fn validate_key_bindings(keys: &KeyBindings) -> Result<(), KeyBindingError> 
         (KeyRole::Search, keys.search.as_str()),
         (KeyRole::OpenWorkdir, keys.open_workdir.as_str()),
         (KeyRole::DigitBack, keys.digit_back.as_str()),
+        (KeyRole::Settings, keys.settings.as_str()),
     ];
-    let mut resolved: Vec<(KeyRole, u16, &str)> = Vec::with_capacity(6);
+    let mut resolved: Vec<(KeyRole, u16, &str)> = Vec::with_capacity(7);
     for (role, name) in roles {
+        if role == KeyRole::Settings && name.trim().is_empty() {
+            continue;
+        }
         let Some(vk) = parse_vk_name(name) else {
             return Err(KeyBindingError::UnknownName {
                 role: role.label(),
                 name: name.to_string(),
             });
         };
-        let allow_digit_vk = role == KeyRole::DigitBack;
-        if !allow_digit_vk && digit_from_vk(vk).is_some() {
+        if !role.allows_reserved_digit() && digit_from_vk(vk).is_some() {
             return Err(KeyBindingError::ReservedDigit { role: role.label() });
         }
         for (other, ovk, oname) in &resolved {
-            if *ovk == vk {
+            if vks_equivalent(*ovk, vk) {
                 return Err(KeyBindingError::Duplicate {
                     role_a: other.label(),
                     role_b: role.label(),
@@ -942,7 +1193,7 @@ pub fn validate_key_bindings(keys: &KeyBindings) -> Result<(), KeyBindingError> 
             return Err(KeyBindingError::ReservedDigit { role: "wake" });
         }
         for (other, ovk, oname) in &resolved {
-            if *ovk == wvk {
+            if vks_equivalent(*ovk, wvk) {
                 return Err(KeyBindingError::Duplicate {
                     role_a: other.label(),
                     role_b: "wake",
@@ -978,9 +1229,15 @@ pub fn validate_key_set_chords(keys: &KeyBindings) -> Result<(), KeyBindingError
 
 /// Display text must be unique (empty field = VK short name).
 pub fn validate_display_labels(keys: &KeyBindings) -> Result<(), KeyBindingError> {
-    let mut seen: Vec<(KeyRole, String)> = Vec::with_capacity(6);
+    let mut seen: Vec<(KeyRole, String)> = Vec::with_capacity(7);
     for role in KeyRole::ALL {
+        if role == KeyRole::Settings && keys.settings.trim().is_empty() {
+            continue;
+        }
         let label = keys.display_label(role);
+        if label.is_empty() {
+            continue;
+        }
         for (other, olabel) in &seen {
             if olabel == &label {
                 return Err(KeyBindingError::DuplicateDisplay {
@@ -1003,14 +1260,13 @@ pub fn apply_captured_vk(
     vk: u16,
 ) -> Result<Option<KeyRole>, KeyBindingError> {
     let name = vk_to_name(vk);
-    let allow_digit = role == KeyRole::DigitBack;
-    if !allow_digit && digit_from_vk(vk).is_some() {
+    if !role.allows_reserved_digit() && digit_from_vk(vk).is_some() {
         return Err(KeyBindingError::ReservedDigit { role: role.label() });
     }
     let other = KeyRole::ALL
         .iter()
         .copied()
-        .find(|&r| r != role && keys.resolved_vk(r) == vk);
+        .find(|&r| r != role && vks_equivalent(keys.resolved_vk(r), vk));
     if let Some(other) = other {
         let old_self = keys.vk_name(role).to_string();
         keys.set_vk(role, name);
@@ -1089,6 +1345,7 @@ mod tests {
             search: VK_OEM_5,
             open_workdir: VK_CONTROL,
             digit_back: 0x27,
+            settings: 0,
             wake: VK_SUBTRACT,
             wake_enabled: false,
         };
@@ -1100,25 +1357,25 @@ mod tests {
     }
 
     #[test]
-    fn search_default_is_backslash() {
+    fn search_default_is_tab() {
         let keys = KeyBindings::default().resolved();
-        assert_eq!(keys.search, VK_OEM_5);
-        assert!(keys.is_search(VK_OEM_5));
+        assert_eq!(keys.search, VK_TAB);
+        assert!(keys.is_search(VK_TAB));
         assert!(!keys.is_search(VK_DIVIDE));
         assert!(!keys.is_search(VK_OEM_2));
-        assert_eq!(vk_short_label(VK_OEM_5), "\\");
+        assert_eq!(vk_short_label(VK_TAB), "Tab");
         assert_eq!(vk_short_label(0x1B), "ESC");
     }
 
     #[test]
     fn display_label_falls_back_to_vk_short() {
         let mut keys = KeyBindings::default();
-        assert_eq!(keys.display_label(KeyRole::Search), "\\");
-        assert_eq!(keys.display_label(KeyRole::Cancel), "ESC");
+        assert_eq!(keys.display_label(KeyRole::Search), "Tab");
+        assert_eq!(keys.display_label(KeyRole::Cancel), "-");
         keys.set_label(KeyRole::Search, "Find");
         assert_eq!(keys.display_label(KeyRole::Search), "Fin"); // clamped to 3
         keys.set_label(KeyRole::Search, "");
-        assert_eq!(keys.display_label(KeyRole::Search), "\\");
+        assert_eq!(keys.display_label(KeyRole::Search), "Tab");
     }
 
     #[test]
@@ -1136,37 +1393,51 @@ mod tests {
     }
 
     #[test]
-    fn wake_key_is_numpad_minus_when_enabled() {
-        let off = KeyBindings::default().resolved();
-        assert!(!off.wake_enabled);
-        assert!(!off.is_wake(VK_SUBTRACT));
-        let on = ResolvedKeys {
+    fn wake_key_is_esc_when_enabled_on_shipped_numpad() {
+        let on = KeyBindings::default().resolved();
+        assert!(on.wake_enabled);
+        assert!(on.is_wake(0x1B));
+        assert!(!on.is_wake(VK_SUBTRACT));
+        let off = ResolvedKeys {
             start: VK_ADD,
             confirm: 0x0D,
-            cancel: 0x1B,
+            cancel: VK_SUBTRACT,
             search: VK_OEM_5,
             open_workdir: VK_CONTROL,
             digit_back: 0x27,
+            settings: VK_DIVIDE,
             wake: VK_SUBTRACT,
-            wake_enabled: true,
+            wake_enabled: false,
         };
-        assert!(on.is_wake(VK_SUBTRACT));
-        assert!(!on.is_wake(VK_ADD));
-        assert!(!on.is_wake(VK_DECIMAL));
+        assert!(!off.is_wake(VK_SUBTRACT));
     }
 
     #[test]
-    fn open_workdir_default_is_ctrl() {
+    fn open_workdir_default_is_numpad_dot() {
         let keys = KeyBindings::default().resolved();
-        assert_eq!(keys.open_workdir, VK_CONTROL);
-        assert!(keys.is_open_workdir(VK_CONTROL));
-        assert!(keys.is_open_workdir(VK_LCONTROL));
-        assert!(keys.is_open_workdir(VK_RCONTROL));
-        assert_eq!(vk_short_label(VK_CONTROL), "Ctr");
+        assert_eq!(keys.open_workdir, VK_DECIMAL);
+        assert!(keys.is_open_workdir(VK_DECIMAL));
+        assert!(keys.is_open_workdir(VK_DELETE));
+        assert!(!keys.is_open_workdir(VK_OEM_PERIOD));
+        assert_eq!(vk_short_label(VK_DECIMAL), ".");
         assert_eq!(
             KeyBindings::default().display_label(KeyRole::OpenWorkdir),
-            "Ctr"
+            "."
         );
+    }
+
+    #[test]
+    fn keyboard_open_workdir_is_oem_period_not_numpad_decimal() {
+        let mut keys = KeyBindings::default();
+        keys.normalize();
+        assert!(keys.activate(KEY_SET_KEYBOARD));
+        let r = keys.resolved();
+        assert_eq!(r.open_workdir, VK_OEM_PERIOD);
+        assert!(r.is_open_workdir(VK_OEM_PERIOD));
+        assert!(!r.is_open_workdir(VK_DECIMAL));
+        assert!(!r.is_open_workdir(VK_DELETE));
+        assert_eq!(vk_short_label(VK_OEM_PERIOD), ".");
+        assert!(!vks_equivalent(VK_DECIMAL, VK_OEM_PERIOD));
     }
 
     #[test]
@@ -1178,6 +1449,7 @@ mod tests {
             search: VK_DIVIDE,
             open_workdir: VK_CONTROL,
             digit_back: 0x27,
+            settings: 0,
             wake: VK_SUBTRACT,
             wake_enabled: false,
         };
@@ -1191,6 +1463,7 @@ mod tests {
             search: VK_OEM_2,
             open_workdir: VK_CONTROL,
             digit_back: 0x27,
+            settings: 0,
             wake: VK_SUBTRACT,
             wake_enabled: false,
         };
@@ -1204,6 +1477,7 @@ mod tests {
             search: 0x78, // F9
             open_workdir: VK_CONTROL,
             digit_back: 0x27,
+            settings: 0,
             wake: VK_SUBTRACT,
             wake_enabled: false,
         };
@@ -1237,6 +1511,12 @@ mod tests {
             "VK_LCONTROL",
             "VK_F9",
             "VK_TAB",
+            "VK_DECIMAL",
+            "VK_LWIN",
+            "VK_OEM_PERIOD",
+            "VK_OEM_MINUS",
+            "VK_OEM_PLUS",
+            "VK_BACK",
         ] {
             let vk = parse_vk_name(name).unwrap();
             assert_eq!(parse_vk_name(&vk_to_name(vk)), Some(vk));
@@ -1275,15 +1555,17 @@ mod tests {
         keys.search_label = "1".into();
         keys.start_label = "9+".into();
         keys.set_label(KeyRole::Search, "Win");
-        assert_eq!(keys.search, "VK_OEM_5");
+        assert_eq!(keys.search, "VK_TAB");
         assert!(validate_key_bindings(&keys).is_ok());
     }
 
     #[test]
     fn capture_escape_on_confirm_swaps_with_cancel() {
         let mut keys = KeyBindings::default();
-        keys.confirm_label = "OK".into();
+        keys.wake_enabled = false;
+        keys.cancel = "VK_ESCAPE".into();
         keys.cancel_label = "No".into();
+        keys.confirm_label = "OK".into();
         let other = apply_captured_vk(&mut keys, KeyRole::Confirm, 0x1B).unwrap();
         assert_eq!(other, Some(KeyRole::Cancel));
         assert_eq!(keys.confirm, "VK_ESCAPE");
@@ -1316,6 +1598,7 @@ mod tests {
     #[test]
     fn wake_on_conflicts_with_start_subtract() {
         let mut keys = KeyBindings::default();
+        keys.cancel = "VK_ESCAPE".into();
         keys.wake_enabled = true;
         keys.wake = "VK_SUBTRACT".into();
         keys.start = "VK_SUBTRACT".into();
@@ -1334,6 +1617,8 @@ mod tests {
     fn capture_wake_refuses_swap_when_enabled() {
         let mut keys = KeyBindings::default();
         keys.wake_enabled = true;
+        keys.wake = "VK_SUBTRACT".into();
+        keys.cancel = "VK_ESCAPE".into();
         let err = apply_captured_wake(&mut keys, 0x1B).unwrap_err();
         assert!(matches!(
             err,
@@ -1346,6 +1631,9 @@ mod tests {
     #[test]
     fn capture_wake_stores_vk_when_disabled() {
         let mut keys = KeyBindings::default();
+        keys.wake_enabled = false;
+        keys.cancel = "VK_ESCAPE".into();
+        keys.wake = "VK_SUBTRACT".into();
         apply_captured_wake(&mut keys, 0x1B).unwrap();
         assert_eq!(keys.wake, "VK_ESCAPE");
         assert!(!keys.wake_enabled);
@@ -1379,10 +1667,25 @@ mod tests {
         assert_eq!(keys.chord_for_id(KEY_SET_KEYBOARD), 'k');
         assert!(keys.activate(KEY_SET_KEYBOARD));
         assert_eq!(keys.start, "VK_OEM_PLUS");
-        assert_eq!(keys.wake, "VK_OEM_MINUS");
+        assert_eq!(keys.wake, "VK_ESCAPE");
+        assert!(!keys.wake_enabled);
         assert_eq!(keys.active_chord(), 'k');
         assert!(keys.activate(KEY_SET_NUMPAD));
         assert_eq!(keys.start, "VK_ADD");
+        assert_eq!(keys.cancel, "VK_ESCAPE");
+        assert_eq!(keys.settings, "VK_DIVIDE");
+        assert_eq!(keys.window_bg, SHIPPED_WINDOW_BG_NUMPAD);
+        assert!(!keys.wake_enabled);
+        assert!(keys.activate(KEY_SET_KEYBOARD));
+        assert_eq!(keys.settings, "VK_OEM_2");
+        assert_eq!(keys.display_label(KeyRole::Settings), "/");
+        assert_eq!(keys.window_bg, SHIPPED_WINDOW_BG_KEYBOARD);
+        assert_eq!(keys.cancel, "VK_OEM_MINUS");
+        assert_eq!(keys.search, "VK_TAB");
+        assert_eq!(keys.open_workdir, "VK_OEM_PERIOD");
+        assert_eq!(keys.digit_back, "VK_BACK");
+        assert_eq!(keys.display_label(KeyRole::Start), "=");
+        assert!(keys.wake_configurable());
     }
 
     #[test]
@@ -1406,23 +1709,181 @@ mod tests {
     }
 
     #[test]
-    fn each_set_keeps_its_own_wake() {
+    fn keyboard_set_ships_wake_off_esc_and_screenshot_defaults() {
         let mut keys = KeyBindings::default();
         keys.normalize();
-        keys.wake_enabled = true;
-        keys.wake = "VK_ESCAPE".into();
-        keys.sync_live_into_sets();
+        assert_eq!(keys.active, KEY_SET_NUMPAD);
         assert!(keys.activate(KEY_SET_KEYBOARD));
+        assert!(keys.wake_configurable());
         assert!(!keys.wake_enabled);
+        assert_eq!(keys.wake, "VK_ESCAPE");
+        assert_eq!(keys.cancel, "VK_OEM_MINUS");
+        assert_eq!(keys.display_label(KeyRole::Cancel), "-");
+        assert_eq!(keys.search, "VK_TAB");
+        assert_eq!(keys.open_workdir, "VK_OEM_PERIOD");
+        assert_eq!(keys.digit_back, "VK_BACK");
+        assert_eq!(keys.display_label(KeyRole::Start), "=");
+        assert_eq!(keys.display_label(KeyRole::OpenWorkdir), ".");
         keys.wake_enabled = true;
-        keys.wake = "VK_OEM_MINUS".into();
         keys.sync_live_into_sets();
+        keys.normalize();
+        assert!(keys.activate(KEY_SET_KEYBOARD));
+        assert!(keys.wake_enabled);
+        assert!(keys.resolved().is_wake(0x1B));
+        assert!(validate_key_bindings(&keys).is_ok());
         assert!(keys.activate(KEY_SET_NUMPAD));
+        assert!(keys.wake_configurable());
         assert!(keys.wake_enabled);
         assert_eq!(keys.wake, "VK_ESCAPE");
-        assert!(keys.activate(KEY_SET_KEYBOARD));
+        assert_eq!(keys.search, "VK_TAB");
+        assert_eq!(keys.open_workdir, "VK_DECIMAL");
+        assert_eq!(keys.digit_back, "VK_BACK");
+    }
+
+    #[test]
+    fn keyboard_placeholder_wake_becomes_esc_without_touching_cancel() {
+        let mut keys = KeyBindings::default();
+        keys.normalize();
+        {
+            let kb = keys
+                .sets
+                .iter_mut()
+                .find(|s| s.id == KEY_SET_KEYBOARD)
+                .unwrap();
+            kb.wake = "VK_OEM_MINUS".into();
+            kb.wake_enabled = false;
+            kb.cancel = "VK_ESCAPE".into();
+            kb.cancel_label = "ESC".into();
+        }
+        keys.normalize();
+        let kb = keys.sets.iter().find(|s| s.id == KEY_SET_KEYBOARD).unwrap();
+        assert_eq!(kb.wake, "VK_ESCAPE");
+        assert!(!kb.wake_enabled);
+        assert_eq!(kb.cancel, "VK_ESCAPE");
+    }
+
+    #[test]
+    fn shipped_numpad_default_is_f3() {
+        let keys = KeyBindings::default();
+        assert_eq!(keys.cancel, "VK_SUBTRACT");
+        assert_eq!(keys.search, "VK_TAB");
+        assert_eq!(keys.open_workdir, "VK_DECIMAL");
+        assert_eq!(keys.digit_back, "VK_BACK");
+        assert_eq!(keys.settings, "VK_DIVIDE");
         assert!(keys.wake_enabled);
-        assert_eq!(keys.wake, "VK_OEM_MINUS");
-        assert!(keys.resolved().is_wake(VK_OEM_MINUS));
+        assert_eq!(keys.wake, "VK_ESCAPE");
+        assert_eq!(keys.window_bg, SHIPPED_WINDOW_BG_NUMPAD);
+        assert_eq!(keys.display_label(KeyRole::Settings), "/");
+        assert_eq!(keys.display_label(KeyRole::Search), "Tab");
+        assert_eq!(keys.display_label(KeyRole::OpenWorkdir), ".");
+        assert_eq!(keys.display_label(KeyRole::DigitBack), "Bks");
+        assert!(validate_key_bindings(&keys).is_ok());
+        assert_eq!(vk_short_label(VK_SUBTRACT), "-");
+        assert_eq!(vk_short_label(VK_DIVIDE), "/");
+        assert_eq!(vk_short_label(VK_OEM_2), "/");
+        assert_eq!(vk_short_label(VK_MULTIPLY), "*");
+        assert_eq!(vk_short_label(VK_DELETE), "Del");
+        assert_eq!(vk_short_label(VK_DECIMAL), ".");
+        assert_eq!(vk_short_label(VK_LWIN), "Win");
+        assert_eq!(vk_short_label(VK_OEM_PLUS), "=");
+    }
+
+    #[test]
+    fn parse_rgb_hex_accepts_hash_and_rejects_junk() {
+        assert_eq!(parse_rgb_hex("#FFF9C4"), Some((0xFF, 0xF9, 0xC4)));
+        assert_eq!(parse_rgb_hex("C6E0B4"), Some((0xC6, 0xE0, 0xB4)));
+        assert_eq!(parse_rgb_hex("#222"), None);
+        assert_eq!(parse_rgb_hex("not-a-color"), None);
+        assert_eq!(parse_rgb_hex(""), None);
+        let mut keys = KeyBindings::default();
+        keys.window_bg = "nope".into();
+        keys.window_fg = String::new();
+        let (bg, fg) = keys.typing_colorref();
+        assert_eq!(bg, rgb_to_colorref((0xFF, 0xF9, 0xC4)));
+        assert_eq!(fg, rgb_to_colorref((0x22, 0x22, 0x22)));
+    }
+
+    #[test]
+    fn empty_settings_is_unbound() {
+        let mut keys = KeyBindings::default();
+        keys.settings.clear();
+        keys.settings_label.clear();
+        assert!(!keys.resolved().is_settings(VK_DIVIDE));
+        assert!(!keys.resolved().is_settings(VK_OEM_2));
+        assert!(validate_key_bindings(&keys).is_ok());
+    }
+
+    #[test]
+    fn keyboard_settings_default_is_slash() {
+        let mut keys = KeyBindings::default();
+        keys.normalize();
+        assert!(keys.activate(KEY_SET_KEYBOARD));
+        assert_eq!(keys.settings, "VK_OEM_2");
+        assert_eq!(keys.display_label(KeyRole::Settings), "/");
+        assert!(keys.resolved().is_settings(VK_OEM_2));
+        assert!(validate_key_bindings(&keys).is_ok());
+    }
+
+    #[test]
+    fn fill_settings_repairs_clash_with_open_workdir() {
+        let mut keys: KeyBindings = serde_json::from_str(
+            r#"{"start":"VK_ADD","confirm":"VK_RETURN","cancel":"VK_ESCAPE","search":"VK_OEM_5","openWorkdir":"VK_MULTIPLY","settings":"VK_MULTIPLY"}"#,
+        )
+        .unwrap();
+        keys.normalize();
+        assert_eq!(keys.open_workdir, "VK_MULTIPLY");
+        assert_eq!(keys.settings, "VK_DIVIDE");
+        assert!(validate_key_bindings(&keys).is_ok());
+    }
+
+    #[test]
+    fn settings_must_not_share_vk_with_open_workdir() {
+        let mut keys = KeyBindings::default();
+        keys.settings = "VK_DECIMAL".into();
+        assert!(matches!(
+            validate_key_bindings(&keys),
+            Err(KeyBindingError::Duplicate { .. })
+        ));
+    }
+
+    #[test]
+    fn digit_back_and_settings_accept_backspace() {
+        let mut keys = KeyBindings::default();
+        apply_captured_vk(&mut keys, KeyRole::DigitBack, 0x08).unwrap();
+        assert_eq!(keys.digit_back, "VK_BACK");
+        keys = KeyBindings::default();
+        apply_captured_vk(&mut keys, KeyRole::Settings, 0x08).unwrap();
+        assert_eq!(keys.settings, "VK_BACK");
+    }
+
+    #[test]
+    fn digit_back_and_settings_swap_backspace_and_arrow() {
+        let mut keys = KeyBindings::default();
+        keys.digit_back = "VK_LEFT".into();
+        keys.digit_back_label = "←".into();
+        keys.settings = "VK_BACK".into();
+        keys.settings_label = "Bks".into();
+        let other = apply_captured_vk(&mut keys, KeyRole::DigitBack, 0x08).unwrap();
+        assert_eq!(other, Some(KeyRole::Settings));
+        assert_eq!(keys.digit_back, "VK_BACK");
+        assert_eq!(keys.settings, "VK_LEFT");
+        assert!(validate_key_bindings(&keys).is_ok());
+    }
+
+    #[test]
+    fn settings_may_use_numlock_off_arrow() {
+        let mut keys = KeyBindings::default();
+        apply_captured_vk(&mut keys, KeyRole::Settings, 0x25).unwrap();
+        assert_eq!(keys.settings, "VK_LEFT");
+        assert!(validate_key_bindings(&keys).is_ok());
+    }
+
+    #[test]
+    fn start_still_rejects_reserved_digit() {
+        let mut keys = KeyBindings::default();
+        assert!(matches!(
+            apply_captured_vk(&mut keys, KeyRole::Start, 0x25),
+            Err(KeyBindingError::ReservedDigit { role: "start" })
+        ));
     }
 }

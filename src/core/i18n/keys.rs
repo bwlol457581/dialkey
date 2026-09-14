@@ -49,6 +49,9 @@ pub const SETTINGS_CANCEL: &str = "settings_cancel";
 pub const SETTINGS_SEARCH: &str = "settings_search";
 pub const SETTINGS_OPEN_WORKDIR_KEY: &str = "settings_open_workdir_key";
 pub const SETTINGS_DIGIT_BACK: &str = "settings_digit_back";
+pub const SETTINGS_SETTINGS_KEY: &str = "settings_settings_key";
+pub const SETTINGS_WINDOW_BG: &str = "settings_window_bg";
+pub const SETTINGS_WINDOW_FG: &str = "settings_window_fg";
 pub const SETTINGS_WAKE_KEY: &str = "settings_wake_key";
 pub const SETTINGS_KEY_SET: &str = "settings_key_set";
 pub const SETTINGS_KEY_CHORD: &str = "settings_key_chord";
@@ -171,6 +174,7 @@ pub const APP_TYPING_LEGEND_MULTI: &str = "app_typing_legend_multi";
 pub const APP_TYPING_LEGEND_ESC: &str = "app_typing_legend_esc";
 pub const APP_TYPING_LEGEND_OPEN_WORKDIR: &str = "app_typing_legend_open_workdir";
 pub const APP_TYPING_LEGEND_DIGIT_BACK: &str = "app_typing_legend_digit_back";
+pub const APP_TYPING_LEGEND_SETTINGS: &str = "app_typing_legend_settings";
 pub const APP_TYPING_NO_INSTANT: &str = "app_typing_no_instant";
 
 pub const TRAY_NOTIFY_TITLE: &str = "tray_notify_title";
@@ -195,6 +199,7 @@ pub const ROLE_CANCEL: &str = "role_cancel";
 pub const ROLE_SEARCH: &str = "role_search";
 pub const ROLE_OPEN_WORKDIR: &str = "role_open_workdir";
 pub const ROLE_DIGIT_BACK: &str = "role_digit_back";
+pub const ROLE_SETTINGS: &str = "role_settings";
 pub const ROLE_WAKE: &str = "role_wake";
 
 /// All keys that official packs should provide (for tests / checklist).
@@ -248,6 +253,9 @@ pub const ALL_KEYS: &[&str] = &[
     SETTINGS_SEARCH,
     SETTINGS_OPEN_WORKDIR_KEY,
     SETTINGS_DIGIT_BACK,
+    SETTINGS_SETTINGS_KEY,
+    SETTINGS_WINDOW_BG,
+    SETTINGS_WINDOW_FG,
     SETTINGS_WAKE_KEY,
     SETTINGS_KEY_SET,
     SETTINGS_KEY_CHORD,
@@ -365,6 +373,7 @@ pub const ALL_KEYS: &[&str] = &[
     APP_TYPING_LEGEND_ESC,
     APP_TYPING_LEGEND_OPEN_WORKDIR,
     APP_TYPING_LEGEND_DIGIT_BACK,
+    APP_TYPING_LEGEND_SETTINGS,
     APP_TYPING_NO_INSTANT,
     TRAY_NOTIFY_TITLE,
     TRAY_NOTIFY_STARTED,
@@ -386,5 +395,6 @@ pub const ALL_KEYS: &[&str] = &[
     ROLE_SEARCH,
     ROLE_OPEN_WORKDIR,
     ROLE_DIGIT_BACK,
+    ROLE_SETTINGS,
     ROLE_WAKE,
 ];

@@ -92,6 +92,9 @@ pub fn english_defaults() -> &'static [(&'static str, &'static str)] {
             "Open folder",
         ),
         (keys::SETTINGS_DIGIT_BACK, "Digit back"),
+        (keys::SETTINGS_SETTINGS_KEY, "Settings"),
+        (keys::SETTINGS_WINDOW_BG, "Window background"),
+        (keys::SETTINGS_WINDOW_FG, "Text"),
         (
             keys::SETTINGS_WAKE_KEY,
             "ON key (wireless pad)",
@@ -343,7 +346,7 @@ pub fn english_defaults() -> &'static [(&'static str, &'static str)] {
         (keys::SEARCH_HINT_OPEN_WORKDIR, "{key}: open folder"),
         (
             keys::APP_TYPING_HINT_IDLE,
-            "DialKey — instant | + multi-digit | \\ search | ESC",
+            "DialKey — instant | + multi-digit | Tab search | -",
         ),
         (
             keys::APP_TYPING_HINT_MULTI_EMPTY,
@@ -362,6 +365,7 @@ pub fn english_defaults() -> &'static [(&'static str, &'static str)] {
         (keys::APP_TYPING_LEGEND_ESC, "Cancel"),
         (keys::APP_TYPING_LEGEND_OPEN_WORKDIR, "Open"),
         (keys::APP_TYPING_LEGEND_DIGIT_BACK, "Back"),
+        (keys::APP_TYPING_LEGEND_SETTINGS, "Settings"),
         (
             keys::APP_TYPING_NO_INSTANT,
             "No instant-fire slots configured.",
@@ -398,11 +402,11 @@ pub fn english_defaults() -> &'static [(&'static str, &'static str)] {
         (keys::HELP_DIALOG_TITLE, "DialKey"),
         (
             keys::HELP_ABOUT_NO_DOCS,
-            "DialKey v{version}\n\nA software macropad.\n\n1. Open with the mouse forward button (X2).\n2. An instant digit launches at once. For other numbers press + (the first line keeps +: then +1, +10), type the digits, then Enter. After that, Ctrl opens the working folder only (does not launch); → deletes the last digit (or returns to the first screen).\n3. Press \\ or left-click the tray icon for Search. ESC cancels.\n\nSome wireless pads sleep after idle. In Settings → Keys you can remember the pad’s ON key; DialKey then ignores it while the typing window is open, so waking the pad does not cancel or launch. Watch the window to confirm keys registered.\n\nRegister tools in Settings → Slots. Switch books with the mode button (X1) then a digit 0–9, or tray → Mode.\n\nCaution: Settings → General → Load copies into the settings folder and overwrites those files. DialKey does not keep using the backup.\n\nTip: Path may be chain:11,20 to launch several slots at once.\n\nFull guide: documentation site (docsUrl is not set).",
+            "DialKey v{version}\n\nA software macropad.\n\n1. Open with the mouse forward button (X2).\n2. An instant digit launches at once. For other numbers press + (the first line keeps +: then +1, +10), type the digits, then Enter. After that, `.` opens the working folder only (does not launch); Backspace deletes the last digit (or returns to the first screen).\n3. Press Tab or left-click the tray icon for Search. Cancel closes. The Settings key (/ by default) opens Settings.\n\nSome wireless pads sleep after idle. In Settings → Keys you can remember the pad’s ON key; DialKey then ignores it while the typing window is open, so waking the pad does not cancel or launch. Watch the window to confirm keys registered.\n\nRegister tools in Settings → Slots. Switch books with the mode button (X1) then a digit 0–9, or tray → Mode.\n\nCaution: Settings → General → Load copies into the settings folder and overwrites those files. DialKey does not keep using the backup.\n\nTip: Path may be chain:11,20 to launch several slots at once.\n\nFull guide: documentation site (docsUrl is not set).",
         ),
         (
             keys::HELP_ABOUT_WITH_DOCS,
-            "DialKey v{version}\n\nA software macropad.\n\n1. Open with the mouse forward button (X2).\n2. An instant digit launches at once. For other numbers press + (the first line keeps +: then +1, +10), type the digits, then Enter. After that, Ctrl opens the working folder only (does not launch); → deletes the last digit (or returns to the first screen).\n3. Press \\ or left-click the tray icon for Search. ESC cancels.\n\nSome wireless pads sleep after idle. In Settings → Keys you can remember the pad’s ON key; DialKey then ignores it while the typing window is open, so waking the pad does not cancel or launch. Watch the window to confirm keys registered.\n\nRegister tools in Settings → Slots. Switch books with the mode button (X1) then a digit 0–9, or tray → Mode.\n\nCaution: Settings → General → Load copies into the settings folder and overwrites those files. DialKey does not keep using the backup.\n\nTip: Path may be chain:11,20 to launch several slots at once.\n\nFull guide (install, slots, FAQ):\n{url}\n\nOpen the docs site now?",
+            "DialKey v{version}\n\nA software macropad.\n\n1. Open with the mouse forward button (X2).\n2. An instant digit launches at once. For other numbers press + (the first line keeps +: then +1, +10), type the digits, then Enter. After that, `.` opens the working folder only (does not launch); Backspace deletes the last digit (or returns to the first screen).\n3. Press Tab or left-click the tray icon for Search. Cancel closes. The Settings key (/ by default) opens Settings.\n\nSome wireless pads sleep after idle. In Settings → Keys you can remember the pad’s ON key; DialKey then ignores it while the typing window is open, so waking the pad does not cancel or launch. Watch the window to confirm keys registered.\n\nRegister tools in Settings → Slots. Switch books with the mode button (X1) then a digit 0–9, or tray → Mode.\n\nCaution: Settings → General → Load copies into the settings folder and overwrites those files. DialKey does not keep using the backup.\n\nTip: Path may be chain:11,20 to launch several slots at once.\n\nFull guide (install, slots, FAQ):\n{url}\n\nOpen the docs site now?",
         ),
         (keys::ROLE_START, "multi-trigger"),
         (keys::ROLE_CONFIRM, "confirm"),
@@ -410,6 +414,7 @@ pub fn english_defaults() -> &'static [(&'static str, &'static str)] {
         (keys::ROLE_SEARCH, "search"),
         (keys::ROLE_OPEN_WORKDIR, "open folder"),
         (keys::ROLE_DIGIT_BACK, "digit back"),
+        (keys::ROLE_SETTINGS, "settings"),
         (keys::ROLE_WAKE, "ON"),
     ]
 }

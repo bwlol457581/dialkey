@@ -8,7 +8,7 @@
 | Item | Value |
 |---|---|
 | Specification revision | **v1.0** (aligned with the app major.minor. Patch `1.0.x` is the app version) |
-| Latest app version | **1.0.1** (`Cargo.toml`) |
+| Latest app version | **1.0.2** (`Cargo.toml`) |
 | First public edition | **1.0.0**. This document starts here. Earlier private builds are not listed |
 | Public git history | This repository starts at **1.0.1**. 1.0.0 is recorded below as a product edition |
 | Author notes | Not in this repository. Pre-1.0.0 history is not published |
@@ -22,6 +22,7 @@ From **1.0.0** onward. Pre-1.0.0 notes are not in this file.
 |---|---|---|
 | **1.0.0** | 2026-09-12 | First public edition |
 | **1.0.1** | 2026-09-13 | ON (wake) is **independent per key set**. Numpad ON + Keyboard OFF (or the reverse) is valid. Switching sets keeps each set’s checkbox |
+| **1.0.2** | 2026-09-14 | Settings pages scroll inside the tab band. Search follows Capture roles. `chain:` Open walks member folders. Typing-window Settings role (`/` on both key sets), per-set colours. Shipped keys (numpad active): Search Tab, Open `.`, Digit-back Backspace, Cancel `-`, ON Esc. Keyboard: Search Tab, Open `.` (`VK_OEM_PERIOD`), Cancel `-`, ON off/Esc, Start display `=` |
 
 ---
 
@@ -121,12 +122,12 @@ Trigger (mouse button, etc.)
    │
    ├─ "+" ─▶ Multi-digit mode ─▶ digits…… ─▶ Enter ─▶ run
    │            │              │
-   │            │              └─ Ctrl (`keys.openWorkdir`) ─▶ open working directory only (do not launch)
+   │            │              └─ `.` (`keys.openWorkdir`) ─▶ open working directory only (do not launch)
    │            └─ "+" pressed again ─▶ cancel
    │
-   ├─ "/" ────────────────▶ Search mode
+   ├─ Tab ────────────────▶ Search mode
    │
-   └─ ESC ────────────────▶ cancel
+   └─ `-` ────────────────▶ cancel
 ```
 
 ### Content of the typing window (input states)
@@ -135,9 +136,9 @@ Look, layout, and colours are **§9 Window display**. This section defines only 
 
 | State | Display |
 |---|---|
-| **Just after the trigger** (Idle) | **Top:** the first **line is empty** (same height as Multi). Then **10 dial lines for 0–9** (name if instant fire, otherwise a blank line to keep height). **Separator** `--------`. **Bottom:** subcommands (default **Trigger → Search → Cancel**. Open / Back hidden). No brand comment line. Option rows always reserve height for up to 5 items |
+| **Just after the trigger** (Idle) | **Top:** the first **line is empty** (same height as Multi). Then **10 dial lines for 0–9** (name if instant fire, otherwise a blank line to keep height). **Separator** `--------`. **Bottom:** subcommands (default **Trigger → Search → Cancel → Settings**. Open / Back hidden). No brand comment line. Option rows always reserve height for up to **6** items. Confirm is never a legend row |
 | Digit pressed (`instant` `false`) | No change (the key is ignored) |
-| **After the multi-trigger** (Narrow down) | **Top:** first line is **Start display + current buffer** (`+` if empty; with digits, `+10` and the name). Then the next decade `{prefix}0`–`{prefix}9` as **10 lines** (show the number even when unregistered. Empty prefix is 0–9; e.g. `10` → 100–109. Do not prefix the decade with `+`). **Separator** `--------`. **Bottom:** default **Open → Search → Back → Cancel** (Trigger hidden). Option rows reserve height for up to 5 items |
+| **After the multi-trigger** (Narrow down) | **Top:** first line is **Start display + current buffer** (`+` if empty; with digits, `+10` and the name). Then the next decade `{prefix}0`–`{prefix}9` as **10 lines** (show the number even when unregistered. Empty prefix is 0–9; e.g. `10` → 100–109. Do not prefix the decade with `+`). **Separator** `--------`. **Bottom:** default **Open → Search → Back → Cancel** (Trigger and Settings hidden). Option rows reserve height for up to **6** items |
 
 > Fixing the dial at the top and subcommands at the bottom keeps number entry primary and helper keys secondary. Legend **visibility and order** can be changed independently in Settings → Keys Idle / Narrow down lists (this does not change the keys' behaviour).
 
@@ -149,8 +150,8 @@ Look, layout, and colours are **§9 Window display**. This section defines only 
 | Key | Action |
 |---|---|
 | Confirm (default Enter) | **Launch only** the slot whose ID is the buffer |
-| Open-workdir (default Ctrl / legend `Ctr`, `keys.openWorkdir`) | **Open that ID's working directory only** (do not launch Path). Does not consult the slot's `openWorkdir` ✅. Folder is explicit `workdir`, or Path's parent if empty. Ignored in Idle. Ignored when the buffer is empty. URL / `chain:` have no folder (and are not launched) |
-| Digit-back (default →, `keys.digitBack`, legend **Back**) | If the buffer has a digit, delete one digit. If empty, **return to Idle**. **In Idle, close the typing window** |
+| Open-workdir (shipped numpad `.` / legend `.`, `keys.openWorkdir`) | **Open that ID's working directory only** (do not launch Path). Does not consult the slot's `openWorkdir` ✅. Folder is explicit `workdir`, or Path's parent if empty. Ignored in Idle. Ignored when the buffer is empty. URL has no folder (and is not launched). A `chain:` slot opens each **member** folder in order (same as Open on 101 then 102). Nested `chain:` / URL / missing ids are skipped. The chain row's own `workdir` is not used |
+| Digit-back (shipped Backspace / legend **Bks**, `keys.digitBack`, legend row **Back**) | If the buffer has a digit, delete one digit. If empty, **return to Idle**. **In Idle, close the typing window** |
 
 Even an instant-fire slot can open **the folder only** via multi-trigger → digits → Open-workdir (launch is Confirm / instant fire). To open the folder at the same time as launch, use the slot's **Also open working directory** (Confirm / instant-fire path).
 
@@ -220,8 +221,12 @@ Symbol keys (`VK_ADD` and the like) are not affected by NumLock.
 | Trigger (mouse) | x2 (Forward) | Yes |
 | Start key | `+` (`VK_ADD`) | Yes |
 | Confirm | Enter | Yes |
-| Cancel | ESC (`VK_ESCAPE`) | Yes |
-| Search | `\` (`VK_OEM_5`) | Yes |
+| Cancel | `-` (`VK_SUBTRACT`) on the shipped **numpad** set. `-` (`VK_OEM_MINUS`) on the shipped **keyboard** set | Yes |
+| Search | Tab (`VK_TAB`) | Yes |
+| Open folder | `.` (`VK_DECIMAL`) on the shipped **numpad** set. `.` (`VK_OEM_PERIOD`) on the shipped **keyboard** set | Yes |
+| Digit-back | Backspace (`VK_BACK`) | Yes |
+| Settings (typing window) | `/` — numpad `VK_DIVIDE`, keyboard `VK_OEM_2`. Empty = unbound | Yes |
+| Typing-window colours | Numpad `#FFF9C4` / `#222222`. Keyboard `#C6E0B4` / `#222222` | Yes (`windowBg` / `windowFg`) |
 
 ### Auto-repeat
 
@@ -234,7 +239,7 @@ Symbol keys (`VK_ADD` and the like) are not affected by NumLock.
 | | Typing mode | Search mode |
 |---|---|---|
 | Use | The number is known (primary path) | The number cannot be recalled at all |
-| Open | Mouse button / hotkey | `\` key / tray left-click |
+| Open | Mouse button / hotkey | Tab / tray left-click |
 | Window | `WS_EX_NOACTIVATE` + `TOPMOST` | Normal (takes focus) |
 | Input | Received via the keyboard hook | Normal input (**IME allowed**) |
 | Focus | **Does not take focus** | Takes focus |
@@ -269,10 +274,11 @@ Symbol keys (`VK_ADD` and the like) are not affected by NumLock.
 
 | Action | Behaviour |
 |---|---|
-| Arrow keys then Enter | Run |
+| Arrow keys then **`keys.confirm`** (default Enter) **or `keys.start`** (fire) | Run. If Esc is bound as Start, Esc launches |
 | Click | Run (**once only.** Ignore nested repeats, double-clicks, and Enter) |
-| Typing | Filter the list (**id / name / path / description**). Run is selection + Enter, or click |
-| **Single press of `keys.openWorkdir`** (default Ctrl. Press and release with no other key in between) | **Open the folder only** (do not launch). Target is the selected row, or an exact-match id in the search field. Folder is registered `workdir`, or Path's parent if empty. URL / `chain:` have no folder (failure toast). Hint under the window: **`{key}: open folder`** |
+| Typing | Filter the list (**id / name / path / description**). Run is selection + confirm/start, or click |
+| **Single press of `keys.openWorkdir`** (shipped numpad `.`. Press and release with no other key in between) | **Open the folder only** (do not launch). Target is the selected row, or an exact-match id in the search field. Folder is registered `workdir`, or Path's parent if empty. URL has no folder (failure toast). A `chain:` row opens each member folder in order (nested `chain:` / URL / missing ids skipped). Hint under the window: **`{key}: open folder`** |
+| **`keys.cancel`** (same Capture as the typing window) | **Close Search** (edit or list focused). Esc closes only when it is Cancel. Esc is not a hardcoded close |
 
 **Close the Search window after a run.** Close it the same way after opening a folder. On launch or folder-open failure, toast + log (the typing window is already gone).
 
@@ -474,16 +480,22 @@ slots.example.json          ← shipped sample (read-only when slotsFile is empt
   "keys": {
     "start":     "VK_ADD",
     "confirm":   "VK_RETURN",
-    "cancel":    "VK_ESCAPE",
-    "search":    "VK_OEM_5",
-    "openWorkdir": "VK_CONTROL",
-    "digitBack": "VK_RIGHT",
+    "cancel":    "VK_SUBTRACT",
+    "search":    "VK_TAB",
+    "openWorkdir": "VK_DECIMAL",
+    "digitBack": "VK_BACK",
+    "settings":  "VK_DIVIDE",
     "startLabel": "+",
     "confirmLabel": "Ent",
-    "cancelLabel": "ESC",
-    "searchLabel": "\\",
-    "openWorkdirLabel": "Ctr",
-    "digitBackLabel": "→"
+    "cancelLabel": "-",
+    "searchLabel": "Tab",
+    "openWorkdirLabel": ".",
+    "digitBackLabel": "Bks",
+    "settingsLabel": "/",
+    "wakeEnabled": true,
+    "wake": "VK_ESCAPE",
+    "windowBg": "#FFF9C4",
+    "windowFg": "#222222"
   },
   "instant": {
     "0": false, "1": true, "2": false, "3": false, "4": false,
@@ -521,12 +533,13 @@ slots.example.json          ← shipped sample (read-only when slotsFile is empt
 | `schemaVersion` | `1` | Settings schema version (separate from the app version). No migration on the current schema. **Missing / non-numeric: warn and treat as `1`**. Too new: stop without overwriting |
 | `dialkeyVersion` | `Cargo.toml` version at save time (optional) | App version that last wrote the file. For logs. **Not used to refuse a read** (refusal is `schemaVersion` only) |
 | `triggers` | mouse x2 + empty hotkey + tray | How the typing window opens. Same defaults when fields are missing |
-| `keys.start` / `confirm` / `cancel` / `search` / `openWorkdir` / `digitBack` | `VK_ADD` / `RETURN` / `ESCAPE` / `OEM_5` / `CONTROL` / `RIGHT` | Role keys. Legacy `keys.phonebook` is accepted as `search` on read. **Search default is `\` (`VK_OEM_5`)**. When a legacy setting is `VK_DIVIDE` / `VK_OEM_2`, accept both slashes. **`openWorkdir` (string) opens the working directory only in multi-digit mode** (does not launch. Default Ctrl, short name **Ctr**. The LL hook also accepts left and right Ctrl. Distinct from the slot bool `openWorkdir`). **The Search window uses the same role key** (**1.0.0**. A normal Edit control, so **tap-alone** rather than the typing window's immediate intercept. A Capture applies to both windows). **`digitBack`** is digit-back / Idle if empty / **close the typing window in Idle**. `digitBack` allows NumLock-off arrow VKs (other roles reserve digits) |
-| `keys.wakeEnabled` | `false` (optional) | **When on**, swallow the `keys.wake` VK while the typing window is shown. Does not change the sequence. Wireless-pad **ON**. **Per key set** (numpad and keyboard are independent. Numpad ON + Keyboard OFF is valid). Wired pads do not need it — leave off. Settings → Keys (**Advanced**). Write to JSON only when `true`. When on, that VK must not duplicate another role (no swap) |
-| `keys.wake` | `VK_SUBTRACT` (optional) | ON VK for the **active** set. Empty uses `VK_SUBTRACT` on numpad, `VK_OEM_MINUS` on keyboard. Unused when that set’s ON is off |
+| `keys.start` / `confirm` / `cancel` / `search` / `openWorkdir` / `digitBack` / `settings` | `VK_ADD` / `RETURN` / **`SUBTRACT`** / **`TAB`** / **`DECIMAL`** / **`BACK`** / **`DIVIDE`** (keyboard **`OEM_2`**) | Role keys. Legacy `keys.phonebook` is accepted as `search` on read. **Search default is Tab (`VK_TAB`)**. When a legacy setting is `VK_DIVIDE` / `VK_OEM_2`, accept both slashes. **`openWorkdir` (string) opens the working directory only in multi-digit mode** (does not launch. Shipped numpad `.` / `VK_DECIMAL`; NumLock-off Del on that key also matches. Shipped keyboard `.` / `VK_OEM_PERIOD`. Ctrl left/right still match when the binding is Ctrl. Distinct from the slot bool `openWorkdir`). **The Search window uses the same Capture roles**. A normal Edit control, so **openWorkdir is tap-alone** rather than the typing window's immediate intercept. A Capture applies to both windows. **Search closes on `keys.cancel` only. `keys.confirm` or `keys.start` runs the selection** (if Esc is Start, Esc launches). **`digitBack`** is digit-back / Idle if empty / **close the typing window in Idle**. Shipped **Backspace**. `digitBack` and `settings` allow NumLock-off arrow VKs (other roles reserve digits) so Capture can swap them. **`settings`** closes the typing window and opens Settings (same as the tray). Empty = unbound. Shipped **numpad** is `VK_DIVIDE` (`/`). Shipped **keyboard** is `VK_OEM_2` (`/`). Missing or colliding `settings` fills that set's `/` when the VK is free; existing non-colliding values are kept. `schemaVersion` is not bumped |
+| `keys.wakeEnabled` | Shipped numpad: `true`. Shipped keyboard: `false`. Omitted / missing: `false` | **When on**, swallow the `keys.wake` VK while the typing window is shown. Does not change the sequence. Wireless-pad **ON**. **Both key sets** show the checkbox (Settings → Keys, **Advanced**). Wired pads can leave it off. Write to JSON only when `true`. When on, that VK must not duplicate another role (no swap. If Esc is set as ON, move Cancel first). Existing files that omit the field stay off |
+| `keys.wake` | Shipped both sets: `VK_ESCAPE`. Omitted field: `VK_SUBTRACT` | ON VK. Capture on the selected key set. Empty on numpad uses `VK_SUBTRACT` (the 1.0.1 omit default). Empty on keyboard uses Esc. Unused when off. **Reset this key set** writes Esc (numpad checkbox on; keyboard checkbox off) |
 | `keys.active` | `"numpad"` (optional) | Current key-set id. `"numpad"` / `"keyboard"`. Numpad if omitted |
-| `keys.sets` | Two shipped sets (optional) | Each item is id / chord (a–z; defaults `t` / `k`) plus a full role-key set including `wake` / `wakeEnabled`. Sets do not share ON. If empty, load builds numpad + main-keyboard defaults from live keys. Do not bump `schemaVersion` |
-| `keys.startLabel` / `confirmLabel` / `cancelLabel` / `searchLabel` / `openWorkdirLabel` / `digitBackLabel` | `+` / `Ent` / `ESC` / `\` / `Ctr` / `→` | Typing-window legend display names (max 3 characters each). Empty = VK short name |
+| `keys.sets` | Two shipped sets (optional) | Each item is id / chord (a–z; defaults `t` / `k`) plus a full role-key set, including `wake` / `wakeEnabled`. If empty, load builds numpad + main-keyboard defaults from live keys. Do not bump `schemaVersion` |
+| `keys.startLabel` / `confirmLabel` / `cancelLabel` / `searchLabel` / `openWorkdirLabel` / `digitBackLabel` / `settingsLabel` | `+` / `Ent` / `-` / `Tab` / `.` / `Bks` / `/` | Typing-window legend display names (max 3 characters each). Empty = VK short name. Keyboard Start display is `=` |
+| `keys.windowBg` / `keys.windowFg` | Numpad `#FFF9C4` / `#222222`. Keyboard `#C6E0B4` / `#222222` | Typing-window colours (`#RRGGBB`). Empty or malformed uses that item's shipped colour only. Search and Settings stay system/white. Settings → Keys, next to the key-set combo. **Reset this key set** restores both |
 | `instant` | Code default: all `false` / shipped example: `"1": true` | Digits that launch immediately on a lone press |
 | `search.mode` | `substring` | `exact` / `prefix` / `substring` / `fuzzy` |
 | `search.caseSensitive` | `false` | Search case sensitivity |
@@ -544,7 +557,7 @@ slots.example.json          ← shipped sample (read-only when slotsFile is empt
 | `modeSwitch.suppress` | `true` | Do not pass the leader press to other apps (default. Suppresses browser Back) |
 | `modeSwitch.chordTimeoutMs` | `2000` | After the leader, wait this many ms for a digit / letter. `0` disables the mode-switch mouse |
 | `modeSwitch.keys` | `{}` (`0` is shipped `slots.json`) | Optional overrides. Keys are `"0"`–`"9"` (one character). Even when empty, `0` is reserved for `slots.json`. Other books enumerate from `1` |
-| `legend` | See below | Typing-window subcommands: `order` (5 items) and `hidden` for **Idle / Narrow down (multi)** each. If omitted, Idle = Trigger→Search→Cancel (Open/Back hidden), multi = Open→Search→Back→Cancel (Trigger hidden). ids are `start` / `openWorkdir` / `search` / `digitBack` / `cancel` |
+| `legend` | See below | Typing-window subcommands: `order` (**6** items) and `hidden` for **Idle / Narrow down (multi)** each. If omitted, Idle = Trigger→Search→Cancel→Settings (Open/Back hidden), multi = Open→Search→Back→Cancel (Trigger and Settings hidden). ids are `start` / `openWorkdir` / `search` / `digitBack` / `cancel` / `settings`. Confirm is never a legend id. A 1.0.1 file with 5 ids gets `settings` appended (Idle: visible; Narrow down: hidden). Hidden keys still work |
 
 ### slots.json
 
@@ -734,7 +747,7 @@ Reload settings from the tray menu **Reload**, or from the CLI **`--reload`**.
 | Folder | **Open via the shell association** (Explorer and the like) |
 | `.ahk` / documents (`.xlsx` / `.pdf` / `.txt` and the like) | **Open via the shell association** |
 | `http://` / `https://` | **Open in the default browser**. Path resolution and working directory do not apply |
-| `chain:` | **Special command (advanced).** IDs after `chain:`, comma-separated (spaces allowed). Launch sequentially in written order. Nesting is one level only. Continue the rest after a failure. Do not consult the target's instant. No path resolution, date tokens, `workdir`, or existence check (they remain Search targets). Cycles cannot be saved. Missing IDs warn. A reference that disappeared at run time is a failure notification |
+| `chain:` | **Special command (advanced).** IDs after `chain:`, comma-separated (spaces allowed). **Launch** sequentially in written order. **Open-workdir** opens each **member** folder in that same order (as if Open were pressed on 101 then 102). Nesting is one level only: nested `chain:`, URL members, and missing ids are skipped and the rest continue. Do not consult the target's instant. The chain row's own `workdir` is not used. No path resolution or date tokens on the chain string itself (members still resolve). Cycles cannot be saved. Missing IDs warn. Launch of a reference that disappeared at run time is a failure notification; Open reports failure only when **no** member folder opened |
 
 Relative paths are resolved from the folder that contains the executable (§6 path-resolution rules).
 
@@ -839,14 +852,14 @@ Vertical spacing inside a tab is shared: label → control below it is tight; **
 | Tab | Content | Visible by default |
 |---|---|---|
 | **Slots** | Slot list and editor. At the top, **the book being edited** (display name. `1 · Example` if it is on 0–9). **Instant fire** checkbox (enabled only when the ID is exactly `"0"`–`"9"`. Data is `settings.instant`, not the slot JSON) | Yes |
-| **Keys** | At the top, **key set**▼ (numpad / main keyboard. **Edit target** = which set's Action keys Capture applies to). Action keys Capture. Each row is **Caption \| Trigger (VK name) \| Display (max 3; empty = default short name) \| Capture** (one row. Leave space between the caption column and Trigger, and between rows, so rows do not overlap). **ON** checkbox + **ON Capture** on **both** sets (off by default. When on, swallow the chosen VK while the window is shown. No combo). Each set stores its own ON; switching the combo must load that set’s checkbox (do not copy the HWND state). Then **Reset this key set to defaults** (this set's Action keys / ON / that set's letter only. Do not touch the launch mouse). **Capture guidance text sits under the Displayed options group**. No gap between Action keys and Displayed options. Displayed options: Idle / Narrow down checklists + Move up / Move down (visibility and order. Does not change key behaviour. JSON is `legend`) | Advanced |
+| **Keys** | At the top, **key set**▼ (numpad / main keyboard. **Edit target** = which set's Action keys Capture applies to) plus **Window background / Text** (`#RRGGBB` for that set). Action keys Capture, including **Settings** (empty = unbound). Each row is **Caption \| Trigger (VK name) \| Display (max 3; empty = default short name) \| Capture** (one row. Leave space between the caption column and Trigger, and between rows, so rows do not overlap). **ON** checkbox + **ON Capture** on both sets (shipped numpad: on, Esc. Shipped keyboard: off, Esc. When on, swallow the chosen VK while the window is shown. No combo). Then **Reset this key set to defaults** (this set's Action keys / colours / ON / that set's letter only. Do not touch the launch mouse). **Capture guidance text sits under the Displayed options group**. No gap between Action keys and Displayed options. Displayed options: Idle / Narrow down checklists + Move up / Move down (visibility and order. Does not change key behaviour. Always **6** rows. JSON is `legend`) | Advanced |
 | **Triggers** | At the top, **Switch triggers** (leader mouse default x1 / suppress / `chordTimeoutMs` / per-set letter▼ a–z. 0–9 = books, letters = key sets). Below that, **Launch triggers** (launch mouse / suppress / hotkey / **Reset triggers to defaults** = launch + switch mouse / timeout / letters `t`/`k`. Do not touch book `modeSwitch.keys` assignments) | Advanced |
 | **Search** | Match mode / case sensitivity | Advanced |
 | **Mode** | **Current-book combo** (assigned 0–9 only, `code · display name`) / **single list: codes 0–9, filename, display name (tab-aligned. Height shows 10 rows. Do not stretch with empty space. Scroll if overflow) + book combo + Assign / Unassign + status line**. No ✔ in the list (the current book is the Slots header line and tray Mode). The blue row is for Assign/Unassign. Row double-click = switch the current book (empty row does nothing). **Do not edit the book display name (`meta.displayName`) here** | Advanced |
 | **General** | **Default:** UI language / **autostart** / **Open settings folder** / **Backup folder** (Browse + Backup + Load). Backup status line is **under** the group (same as Keys Capture guidance. Do not leave a 40px frame when empty). **Added under Advanced:** **Slots file** (`slotsFile`) pin, timeout / max digits / `feedbackMs` / log level | Tab always. Items as above |
 
-**Do not persist window size.** Each open uses a content preferred size, then clamps to the monitor work area (`fit_settings_window_to_content`). **Height is the max of the tabs currently visible** (with Advanced off, only Slots and General default items). Do not save a user-shrunk size into settings.  
-**Tabs are scrollable** (keep a compact outer frame; Mode and similar must not clip when items grow).
+**Do not persist window size.** Each open uses a content preferred size, then clamps to the monitor work area (`fit_settings_window_to_content`). **Height follows the Slots tab** (and General default items when Advanced is off). Do not grow the outer frame to fit Keys / Triggers / Search / Mode / General advanced items — those pages **scroll inside the tab band** (`WS_VSCROLL` on the page panel; the bar shows only when content is taller than the band). Do not save a user-shrunk size into settings.  
+**The page panel is vertically scrollable** (keep a compact outer frame; Advanced pages must not clip under the footer). Slot-list and Mode-list scrollbars are separate.
 
 When Advanced is turned off and the current tab is Mode / Keys / Triggers / Search, **return to Slots**. Values stay in JSON (hidden only). Book switching stays on tray Mode. Triggers “Reset to defaults” is on the Advanced side (Keys has its own key-set reset). The checkbox stays visible, so there is always an exit path.
 
@@ -858,9 +871,9 @@ When Advanced is turned off and the current tab is Mode / Keys / Triggers / Sear
 
 | Check | Content |
 |---|---|
-| Mutual exclusion | Start / Confirm / Cancel / Search / **open working directory** / **digit-back** must not share a VK. **Capturing the same VK onto another role swaps them** (gamepad style). Do not swap Display text; **overwrite both with the VK short name** (max 3 characters, `Enter`→`Ent`). **When ON is on**, do not give that VK to another role (reject; no swap. If Esc is set as ON, move Cancel first) |
+| Mutual exclusion | Start / Confirm / Cancel / Search / **open working directory** / **digit-back** / **Settings** (when bound) must not share a VK. **Capturing the same VK onto another role swaps them** (gamepad style). Do not swap Display text; **overwrite both with the VK short name** (max 3 characters, `Enter`→`Ent`). Empty Settings is allowed (unbound). **When ON is on**, do not give that VK to another role (reject; no swap. If Esc is set as ON, move Cancel first) |
 | Display clash | Reject identical display strings (blank is treated as the VK short name). Short names that collide across sets, such as numpad `+` and main-keyboard `+`, are rare |
-| Reserved keys | Digits 0–9 cannot be assigned |
+| Reserved keys | Digits 0–9 cannot be assigned. **digitBack** and **Settings** may use NumLock-off navigation VKs (`VK_LEFT` / `VK_RIGHT` and the rest of that series) so Capture can swap them with each other |
 | Esc | **Assignable as Cancel.** Not used to abort Capture |
 | Abort Capture | That row's **Cancel** (label is Capture→Cancel only while waiting) / Capture on another role / close Settings. No timeout. Apply/Set does not abort |
 | Display focus | Keys in that interval are not passed to Capture (neither assign nor abort) |
@@ -984,7 +997,7 @@ Because the design does not wait after launch, **errors and abnormal exits insid
 | UI | Content |
 |---|---|
 | Typing window | Primary key row + number / candidate list. `NOACTIVATE` + `TOPMOST`, compact. Look is **Window display** below |
-| Search window | Search field + list. A normal focused window. Hint under the list: **`{key}: open folder`** (**1.0.0**. `keys.openWorkdirLabel`, default `Ctr`) |
+| Search window | Search field + list. A normal focused window. Hint under the list: **`{key}: open folder`** (`keys.openWorkdirLabel`, shipped numpad `.`). **Closes on `keys.cancel`. Runs on `keys.confirm` or `keys.start`** (list has a vertical scrollbar when rows overflow) |
 | Tray menu | Run DialKey / Search / Settings / **Mode** / **Reload** / Help / Quit |
 | Settings | Key reassignment, slot management, mode switch, other settings (§7) |
 
@@ -1008,19 +1021,19 @@ Typing and Search may overlap. Clamp so they stay inside the work area.
 
 | Item | Decision |
 |---|---|
-| Background | Pale sticky-note yellow **`#FFF9C4`** (distinct from other windows) |
+| Background | Per key set (`keys.windowBg`). Shipped numpad **`#FFF9C4`**. Shipped keyboard **`#C6E0B4`**. Malformed value uses that set's shipped colour |
 | Branded hint | **Do not show** (`DialKey — instant \| …` and the like are withdrawn) |
 | Alignment | **Digits, keys, and titles are left-aligned** (measure the key-column width at draw time and align the title column) |
-| Primary key row (bottom, this order) | Under the `--------` separator. Follows the **Settings → Keys Idle / Narrow down lists** (default Idle: Trigger → Search → Cancel. Default Narrow down: Open → Search → Back → Cancel). Hidden items still **reserve 5 rows of height**. The key column is Settings → Keys Display (empty = VK short name). Cancel short name is **ESC**; Search default short name is **`\`**. Legend labels are initial-capped (Trigger / Open / Back / Search / Cancel) |
+| Primary key row (bottom, this order) | Under the `--------` separator. Follows the **Settings → Keys Idle / Narrow down lists** (default Idle: Trigger → Search → Cancel → Settings. Default Narrow down: Open → Search → Back → Cancel). Hidden items still **reserve 6 rows of height**. The key column is Settings → Keys Display (empty = VK short name). Shipped numpad Cancel short name is **`-`**; shipped keyboard Cancel is **`-`**; Search **Tab**; Open **`.`** (numpad `VK_DECIMAL` / keyboard `VK_OEM_PERIOD`); Digit-back **Bks**; Settings **`/`**. Legend labels are initial-capped (Trigger / Open / Back / Search / Cancel / Settings). Confirm is not a legend row |
 | Body | **Top = dial / candidates, bottom = subcommands**. The dial is **1 header line (empty in Idle. Multi is Start + buffer: `+` / `+1` / `+10`) + 10 decade lines**. Idle decade is **0–9**. Multi-digit is `{prefix}0`–`{prefix}9` (unregistered still shows the number). Window height is these 11 lines |
 | After the multi-trigger | Start + buffer on the first line (`+` if empty; `+10` with digits). Decade below. No brand comment line |
 
-Text colour is a dark readable colour on the pale yellow (black to dark grey).
+Text colour is `keys.windowFg` (shipped `#222222`). Search and Settings stay system / white.
 
 #### Search and Settings
 
-- Search and Settings keep the previous palette (system / white). Only the typing window is pale yellow
-- Settings keeps roughly the current compact outer frame; in-tab scroll prevents clipping (§7)
+- Search and Settings keep the previous palette (system / white). The typing window colour is per key set (§6 `windowBg` / `windowFg`)
+- Settings keeps a compact outer frame sized to Slots; the page panel scrolls when content is taller (§7)
 
 **Tray icon actions**
 
@@ -1096,6 +1109,7 @@ Release build, tray resident only (do not open Settings / the typing UI). After 
 |---|---|---|---|---|---|
 | **1.0.0** | 2026-09-12 | **59.1 ms** | **15.8 ms** | 45–92 ms | n=10. Same machine, release, isolated `_measure/v100`. samples=[67,64,76,47,59,47,48,45,46,92]. Search folder-open (tap-alone) is a Search-shown-only code path and is not on the resident path |
 | **1.0.1** | 2026-09-13 | **115.1 ms** | **33.0 ms** | 76–174 ms | n=10. Same machine, release, isolated `_measure/v101`. samples=[171,174,121,109,90,95,94,116,105,76]. Confirmed `DialKey 1.0.1` (`--version` / log). Numpad-only ON is Settings-only and is not on the resident path |
+| **1.0.2** | 2026-09-14 | **69.4 ms** | **13.5 ms** | 47–88 ms | n=10. Same machine, release, isolated `_measure/v102`. samples=[57,88,47,80,69,86,58,74,74,61]. Confirmed zip SHA256 `b4a8d68a766f996709962a45e20123d63a2d3f7432f38df2072cf6c7a59fc5d4`. Shipped key-set defaults are Settings-only and are not on the resident path |
 
 **Procedure**
 
@@ -1114,6 +1128,7 @@ Task Manager's “Memory” column leans toward Working Set (shared DLLs include
 |---|---|---|---|---|
 | **1.0.0** | 2026-09-12 | **3.94 MB** (σ̂ **0.0095**) | **11.72 MB** (σ̂ **0.0114**) | n=10. Isolated `_measure/v100`. Private samples=[3.95,3.93,3.93,3.95,3.93,3.93,3.93,3.95,3.94,3.93]. WS samples=[11.72,11.71,11.72,11.72,11.71,11.70,11.71,11.73,11.72,11.74]. Search folder-open is not on the resident path |
 | **1.0.1** | 2026-09-13 | **3.92 MB** (σ̂ **0.0053**) | **11.77 MB** (σ̂ **0.0074**) | n=10. Isolated `_measure/v101`. Private samples=[3.93,3.92,3.93,3.92,3.93,3.93,3.92,3.93,3.92,3.92]. WS samples=[11.76,11.76,11.77,11.76,11.78,11.77,11.77,11.78,11.77,11.77]. Confirmed `DialKey 1.0.1`. Numpad-only ON is not on the resident path |
+| **1.0.2** | 2026-09-14 | **3.94 MB** (σ̂ **0.0092**) | **11.83 MB** (σ̂ **0.0095**) | n=10. Isolated `_measure/v102`. Private samples=[3.94,3.94,3.94,3.93,3.93,3.96,3.94,3.95,3.94,3.95]. WS samples=[11.83,11.83,11.85,11.83,11.82,11.84,11.84,11.83,11.82,11.84]. Confirmed zip SHA256 `b4a8d68a766f996709962a45e20123d63a2d3f7432f38df2072cf6c7a59fc5d4`. Shipped key-set defaults are not on the resident path |
 
 **Procedure (same conditions on every version bump)**
 
@@ -1242,7 +1257,7 @@ Slot IDs are strings. `"01"` and `"1"` are different. Edit settings in the Setti
 - **Install the keyboard hook only while the window is shown.** Always uninstall on close
   (manage it with RAII so it is released on exceptions as well)
 - **Hook-timeout mitigation** (below)
-- The keyboard hook takes only digits, the start key, confirm, cancel, and the Search key. Everything else is passed through
+- The keyboard hook takes only digits and the bound role keys (start, confirm, cancel, search, open-workdir, digit-back, settings, and ON when enabled). Everything else is passed through
 - Keep the hook body light. Post a message and do heavy work elsewhere
 - JSON settings are read once at startup and held in memory
 - No timer loop; fully event-driven
@@ -1291,7 +1306,7 @@ The model is **specification ⊃ Help** (Help / the docs site are projections of
 | **Site** (GitHub Pages) | Install, SmartScreen, configuration reference, slot examples, FAQ, troubleshooting (explanations that a public release needs or recommends) |
 | **This specification** | Design, invariants, implementation detail (for developers) |
 
-- Tray **Help**: About dialog. Version (when a language pack is active, `Language pack: …` may be shown as well), three how-to points + Settings → Slots, shortest mode switch (X1→0–9, tray Mode), and that an accepted `+` is visible on the first line. Wireless pad: **one paragraph on why to teach ON** + check whether the key registered in the typing window (which pad to buy is FAQ. Copy matches the English original: teach ON in Settings → Keys). One line on `chain:`. One-line warning that **Load copies into the settings folder and overwrites** (does not keep using the stamp). Open the site with Yes/No only when `docsUrl` is set (OK only if empty)
+- Tray **Help**: About dialog. Version (when a language pack is active, `Language pack: …` may be shown as well), three how-to points + Settings → Slots, shortest mode switch (X1→0–9, tray Mode), and that an accepted `+` is visible on the first line. **One line: the Settings key** (shipped `/`) opens Settings from the typing window. Wireless pad: **one paragraph on why to teach ON** + check whether the key registered in the typing window (which pad to buy is FAQ. Copy matches the English original: teach ON in Settings → Keys). One line on `chain:`. One-line warning that **Load copies into the settings folder and overwrites** (does not keep using the stamp). Open the site with Yes/No only when `docsUrl` is set (OK only if empty)
 - `--help`: minimum CLI help (English. Not a language-pack target)
 - **Not in Help**: `slotsFile` field name, date-token table, excluded-app list, **focus-existing / `focusExisting` detail**, Backup / Load **steps** (scope picking and the like), `schemaVersion` / `dialkeyVersion`, Settings → Mode (Advanced), explanation of the Advanced checkbox, design rationale, **which wireless numpad to buy** (BT vs 2.4G, what to purchase. → FAQ). Keep the typing-window check when wake-from-sleep is slow, and add the operational reason to teach ON (Capture steps are FAQ)
 - **Where Load writes (user-facing)**: **copy** into the settings folder. Do not keep using the stamp. Help is the overwrite warning only. Detail is FAQ “How do I back up settings?” and [Configuration](configuration.md)
@@ -1310,6 +1325,7 @@ The release zip is checked on VirusTotal before publication. Results are also po
 |---|---|---|---|
 | **1.0.0** | `DialKey-1.0.0-windows-x64.zip` SHA256 `d64b5fc53416105046d0186a1dc6de93381dd5315964b735c34f2ea2e2c9838d` | **1/67** | Bkav Pro only (`W32.Malware.B950DC92`). Major engines clean. [Report](https://www.virustotal.com/gui/file/d64b5fc53416105046d0186a1dc6de93381dd5315964b735c34f2ea2e2c9838d) |
 | **1.0.1** | `DialKey-1.0.1-windows-x64.zip` SHA256 `e1e1ec30ef0c30ddeef06a42f2fa34a632a411fde642dfe44eff23236ace3ef0` | **1/67** | Bkav Pro only (`W32.Malware.6496BAD0`). Major engines clean. Same heuristic pattern as 1.0.0. [Report](https://www.virustotal.com/gui/file/e1e1ec30ef0c30ddeef06a42f2fa34a632a411fde642dfe44eff23236ace3ef0) |
+| **1.0.2** | `DialKey-1.0.2-windows-x64.zip` SHA256 `b4a8d68a766f996709962a45e20123d63a2d3f7432f38df2072cf6c7a59fc5d4` | **1/67** | Bkav Pro only (`W32.Malware.57C07CFC`). Major engines clean. [Report](https://www.virustotal.com/gui/file/b4a8d68a766f996709962a45e20123d63a2d3f7432f38df2072cf6c7a59fc5d4) |
 
 ### Privacy policy
 
@@ -1333,4 +1349,4 @@ English is built in. Other languages can be added by placing `lang/<code>.toml` 
 
 ---
 
-*v1.0 / app **1.0.1** — public specification. Normative text is §1–13. Author-only notes are not in this repository.*
+*v1.0 / app **1.0.2** — public specification. Normative text is §1–13. Author-only notes are not in this repository.*
