@@ -124,7 +124,7 @@ fn run_job(job: LaunchJob) {
     info!(slot_id = %id, folder_only = job.folder_only, "launch worker running");
     let started = Instant::now();
     let result = if job.folder_only {
-        open_slot_workdir(&job.slot, &job.exe_dir)
+        open_slot_workdir(&job.slot, &job.exe_dir, &job.registry)
     } else {
         launch_slot(&job.slot, &job.exe_dir, &job.registry)
     };

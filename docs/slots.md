@@ -96,8 +96,8 @@ so leading zeros survive (`"01"`).
 |---|---|
 | Trigger → digit with `instant: true` | Launch that slot immediately |
 | Trigger → `+` → digits → Enter | Launch the matching multi-digit slot |
-| Trigger → `+` → digits → Ctrl (or your Open-workdir key) | Open the working folder **only** (parent of Path, or `workdir` if set). Does not launch Path. Works for instant digits too if you use `+` first |
-| Trigger → `/` (or tray → Search) | Search by **id** / name / path / description; select a row and Enter (or click) to launch |
+| Trigger → `+` → digits → `.` (or your Open-workdir key) | Open the working folder **only** (parent of Path, or `workdir` if set). Does not launch Path. Works for instant digits too if you use `+` first |
+| Trigger → Tab (or tray → Search) | Search by **id** / name / path / description; select a row and Enter (or click) to launch |
 
 Max **10 digits** in multi-digit mode; further digits are ignored.
 
@@ -166,8 +166,9 @@ chain:11,20,31
 ```
 
 - Launches the listed slot ids in order (one level only — nested `chain:` targets are skipped)
+- **Open folder** opens each member’s working folder in that same order (URL / nested `chain:` / missing ids skipped). The chain row’s own `workdir` is not used
 - Continues if a target fails or is missing
-- No path resolution, `workdir`, or `openWorkdir`
+- Launch does not use the chain row’s `workdir` or `openWorkdir`
 - Cycles are rejected when you Update / Save; missing targets show a warning
 
 `chain:` is an advanced special command — most users never need it. Prefer a short
@@ -186,7 +187,7 @@ script as the slot `path`. DialKey does not carry an `args` field.
 | `.ahk` | File association |
 | folder / document | Shell association |
 | `http(s)://` | Default browser |
-| `chain:…` | Launch each referenced slot (one level) |
+| `chain:…` | Launch each referenced slot (one level). Open folder walks member folders |
 
 Default working directory (non-URL / non-chain): the folder containing the
 script/exe, unless `workdir` is set. Check **Also open working directory** in

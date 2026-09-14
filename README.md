@@ -3,7 +3,7 @@
 **A software macropad.** Turn any cheap numpad into a left-hand command pad.
 No firmware. No special hardware. Just a numpad and a number.
 
-> Status: Windows **1.0.1**. Use at your own risk. Full
+> Status: Windows **1.0.2**. Use at your own risk. Full
 > specification: [docs/spec.md](docs/spec.md). User docs:
 > https://bwlol457581.github.io/dialkey/
 

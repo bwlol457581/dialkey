@@ -2,7 +2,37 @@
 
 use serde::{Deserialize, Serialize};
 
+use super::keys::ResolvedKeys;
 use super::slots::{natural_cmp_id, Slot};
+
+/// Search-window keydown: follow Capture roles. Esc is not always Cancel.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SearchWindowAction {
+    Close,
+    Launch,
+    NavUp,
+    NavDown,
+    Pass,
+}
+
+/// Classify a Search keydown. Cancel closes. Confirm or Start launches (fire).
+/// Open-workdir is tap-alone on keyup — Pass here so the caller can track it.
+pub fn search_window_keydown(vk: u16, keys: &ResolvedKeys) -> SearchWindowAction {
+    if keys.is_cancel(vk) {
+        return SearchWindowAction::Close;
+    }
+    if keys.is_open_workdir(vk) {
+        return SearchWindowAction::Pass;
+    }
+    if vk == keys.confirm || keys.is_start(vk) {
+        return SearchWindowAction::Launch;
+    }
+    match vk {
+        0x26 => SearchWindowAction::NavUp,   // VK_UP
+        0x28 => SearchWindowAction::NavDown, // VK_DOWN
+        _ => SearchWindowAction::Pass,
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize, Default)]
 #[serde(rename_all = "camelCase")]
@@ -195,5 +225,54 @@ mod tests {
 
         let by_one = search_slots(&slots, "1", &SearchSettings::default());
         assert!(by_one.iter().any(|s| s.id == "1"));
+    }
+
+    fn resolved() -> crate::core::keys::ResolvedKeys {
+        crate::core::keys::KeyBindings::default().resolved()
+    }
+
+    #[test]
+    fn search_window_follows_cancel_not_hardcoded_esc() {
+        let k = resolved();
+        assert_eq!(
+            search_window_keydown(crate::core::keys::VK_SUBTRACT, &k),
+            SearchWindowAction::Close
+        );
+        assert_eq!(search_window_keydown(0x0D, &k), SearchWindowAction::Launch);
+        assert_eq!(
+            search_window_keydown(crate::core::keys::VK_ADD, &k),
+            SearchWindowAction::Launch
+        );
+        assert_eq!(search_window_keydown(0x1B, &k), SearchWindowAction::Pass);
+
+        let mut rebound = resolved();
+        rebound.cancel = 0x1B;
+        assert_eq!(search_window_keydown(0x1B, &rebound), SearchWindowAction::Close);
+        assert_eq!(
+            search_window_keydown(crate::core::keys::VK_SUBTRACT, &rebound),
+            SearchWindowAction::Pass
+        );
+    }
+
+    #[test]
+    fn search_window_esc_as_start_or_confirm_launches() {
+        let mut k = resolved();
+        k.cancel = crate::core::keys::VK_SUBTRACT;
+        k.start = 0x1B;
+        assert_eq!(search_window_keydown(0x1B, &k), SearchWindowAction::Launch);
+
+        let mut k2 = resolved();
+        k2.cancel = crate::core::keys::VK_SUBTRACT;
+        k2.confirm = 0x1B;
+        assert_eq!(search_window_keydown(0x1B, &k2), SearchWindowAction::Launch);
+    }
+
+    #[test]
+    fn search_window_open_workdir_is_pass_on_keydown() {
+        let k = resolved();
+        assert_eq!(
+            search_window_keydown(crate::core::keys::VK_CONTROL, &k),
+            SearchWindowAction::Pass
+        );
     }
 }

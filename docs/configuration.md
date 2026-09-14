@@ -38,16 +38,22 @@ dialkey.exe --config D:\path\to\config
   "keys": {
     "start":     "VK_ADD",
     "confirm":   "VK_RETURN",
-    "cancel":    "VK_ESCAPE",
-    "search":    "VK_OEM_5",
-    "openWorkdir": "VK_CONTROL",
-    "digitBack": "VK_RIGHT",
+    "cancel":    "VK_SUBTRACT",
+    "search":    "VK_TAB",
+    "openWorkdir": "VK_DECIMAL",
+    "digitBack": "VK_BACK",
+    "settings":  "VK_DIVIDE",
     "startLabel": "+",
     "confirmLabel": "Ent",
-    "cancelLabel": "ESC",
-    "searchLabel": "\\",
-    "openWorkdirLabel": "Ctr",
-    "digitBackLabel": "→"
+    "cancelLabel": "-",
+    "searchLabel": "Tab",
+    "openWorkdirLabel": ".",
+    "digitBackLabel": "Bks",
+    "settingsLabel": "/",
+    "wakeEnabled": true,
+    "wake": "VK_ESCAPE",
+    "windowBg": "#FFF9C4",
+    "windowFg": "#222222"
   },
   "instant": {
     "0": false, "1": true, "2": false, "3": false, "4": false,
@@ -83,17 +89,19 @@ dialkey.exe --config D:\path\to\config
 | `schemaVersion` | `1` | Config schema version (not the app version). Missing / non-number → treat as `1` (logged). Newer than this build → refuse, do not overwrite |
 | `dialkeyVersion` | written on save | App version that last wrote the file. Informational; never used to reject a load |
 | `triggers` | mouse x2 + tray | How to open the typing window |
-| `keys.start` | `VK_ADD` | Enter multi-digit mode (`+` on the numpad) |
-| `keys.confirm` | `VK_RETURN` | Confirm a multi-digit number (launch only) |
-| `keys.cancel` | `VK_ESCAPE` | Close the window |
-| `keys.search` | `VK_OEM_5` | Open Search (`\`; legacy JSON key `phonebook` still accepted). Older `VK_DIVIDE` / `VK_OEM_2` bindings still accept both slash keys |
-| `keys.openWorkdir` | `VK_CONTROL` | In multi-digit mode with a non-empty buffer: **open the working folder only** (does not launch Path; ignored in Idle). Legend short name **Ctr**. Left/right Ctrl both accepted. **Search window (1.0.0):** the same key also opens the folder there — tap it alone (press, then release with no other key in between) on the highlighted row or an exact-id query. Not the same as the per-slot `openWorkdir` bool (that one still opens the folder **with** Confirm / instant launch) |
-| `keys.digitBack` | `VK_RIGHT` | Multi-digit: delete last digit; empty buffer returns to Idle; Idle closes the typing window |
-| `keys.wakeEnabled` | `false` (omitted) | When true, swallow `keys.wake` while the typing window is open (the pad’s ON key). **Per key set.** Settings → Keys (Advanced). Leave off if that set does not need it |
-| `keys.wake` | `VK_SUBTRACT` (omitted) | ON-key VK for the active set. Empty = `VK_SUBTRACT` on numpad, `VK_OEM_MINUS` on keyboard. Unused while that set’s ON is off |
+| `keys.start` | `VK_ADD` | Enter multi-digit mode (`+` on the numpad). **Search:** also runs the selection (fire) |
+| `keys.confirm` | `VK_RETURN` | Confirm a multi-digit number (launch only). **Search:** run the selection |
+| `keys.cancel` | `VK_SUBTRACT` | Close the typing window or Search. Shipped **numpad** and **keyboard** are `-` (numpad `VK_SUBTRACT`, keyboard `VK_OEM_MINUS`). Esc is not a hardcoded Search close: it closes Search only when this role is Esc |
+| `keys.search` | `VK_TAB` | Open Search (Tab; legacy JSON key `phonebook` still accepted). Older `VK_DIVIDE` / `VK_OEM_2` bindings still accept both slash keys |
+| `keys.openWorkdir` | numpad `VK_DECIMAL` / keyboard `VK_OEM_PERIOD` | In multi-digit mode with a non-empty buffer: **open the working folder only** (does not launch Path; ignored in Idle). Shipped short name **`.`** on both sets. Numpad `.` also matches NumLock-off Del. Ctrl left/right still accepted when this role is Ctrl. **Search window:** the same key also opens the folder there — tap it alone (press, then release with no other key in between) on the highlighted row or an exact-id query. A `chain:` slot opens each member folder in order. Not the same as the per-slot `openWorkdir` bool (that one still opens the folder **with** Confirm / instant launch) |
+| `keys.digitBack` | `VK_BACK` | Multi-digit: delete last digit; empty buffer returns to Idle; Idle closes the typing window. Short name **Bks**. May use NumLock-off arrows (same Capture exception as Settings) |
+| `keys.settings` | numpad `VK_DIVIDE` / keyboard `VK_OEM_2` | Close the typing window and open Settings. Empty = unbound. Missing or colliding with another role fills `/` when that VK is free. Same reserved-digit exception as digit-back so Capture can swap them |
+| `keys.wakeEnabled` | shipped numpad `true`; shipped keyboard `false`; omitted `false` | When true, swallow `keys.wake` while the typing window is open (the pad’s ON key). **Both key sets** (Settings → Keys, Advanced). Leave off for a wired pad. Existing files that omit the field stay off |
+| `keys.wake` | shipped both sets `VK_ESCAPE`; omitted `VK_SUBTRACT` | ON-key VK for the selected set. Empty on numpad = `VK_SUBTRACT`. Empty on keyboard = Esc. Unused while off |
 | `keys.active` | `numpad` (omitted) | Current key set (`numpad` / `keyboard`) |
-| `keys.sets` | two shipped sets (omitted) | All key sets. Each has `id`, `chord` (`t` / `k`), and the same role keys as the live `keys.*` fields |
-| `keys.startLabel` / `confirmLabel` / `cancelLabel` / `searchLabel` / `openWorkdirLabel` / `digitBackLabel` | *(empty)* | Optional typing-window legend labels (max 3 characters each). Empty = VK short form |
+| `keys.sets` | two shipped sets (omitted) | All key sets. Each has `id`, `chord` (`t` / `k`), role keys, and optional `windowBg` / `windowFg` |
+| `keys.windowBg` / `keys.windowFg` | numpad `#FFF9C4` / `#222222`; keyboard `#C6E0B4` / `#222222` | Typing-window colours (`#RRGGBB`). Empty or broken uses that set’s shipped colour. Search and Settings stay white |
+| `keys.startLabel` / `confirmLabel` / `cancelLabel` / `searchLabel` / `openWorkdirLabel` / `digitBackLabel` / `settingsLabel` | `+` / `Ent` / `-` / `Tab` / `.` / `Bks` / `/` | Optional typing-window legend labels (max 3 characters each). Empty = VK short form. Keyboard Start display is `=` |
 | `instant` | code Default: all `false`; shipped example: `"1": true` | Digits that launch immediately when pressed alone |
 | `search.mode` | `substring` | Search match: `exact` / `prefix` / `substring` / `fuzzy` |
 | `search.caseSensitive` | `false` | Search case sensitivity |
