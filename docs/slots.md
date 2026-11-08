@@ -174,8 +174,8 @@ chain:11,20,31
 `chain:` is an advanced special command — most users never need it. Prefer a short
 `description` that explains what the bundle launches.
 
-Need fixed command-line arguments? Put them in a `.bat` / `.ps1` and register that
-script as the slot `path`. DialKey does not carry an `args` field.
+Need fixed command-line arguments? Put them in a `.bat` / `.ps1`. There is no
+separate args field.
 
 ## Launch rules
 

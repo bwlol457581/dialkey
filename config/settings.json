@@ -1,54 +1,156 @@
 {
-  "schemaVersion": 1,
-  "triggers": [
-    { "type": "mouse",  "button": "x2", "suppress": true },
-    { "type": "hotkey", "key": "" },
-    { "type": "tray" }
-  ],
+  "autostart": false,
+  "dialkeyVersion": "1.1.0",
+  "docsUrl": "https://bwlol457581.github.io/dialkey/",
+  "feedbackMs": 500,
+  "instant": {
+    "0": false,
+    "1": true,
+    "2": false,
+    "3": false,
+    "4": false,
+    "5": false,
+    "6": false,
+    "7": false,
+    "8": false,
+    "9": false
+  },
   "keys": {
-    "start":     "VK_ADD",
-    "confirm":   "VK_RETURN",
-    "cancel":    "VK_SUBTRACT",
-    "search":    "VK_TAB",
-    "openWorkdir": "VK_DECIMAL",
-    "digitBack": "VK_BACK",
-    "settings":  "VK_DIVIDE",
-    "startLabel": "+",
-    "confirmLabel": "Ent",
+    "cancel": "VK_SUBTRACT",
     "cancelLabel": "-",
-    "searchLabel": "Tab",
-    "openWorkdirLabel": ".",
+    "confirm": "VK_RETURN",
+    "confirmLabel": "Ent",
+    "digitBack": "VK_BACK",
     "digitBackLabel": "Bks",
+    "openWorkdir": "VK_DECIMAL",
+    "openWorkdirLabel": ".",
+    "search": "VK_TAB",
+    "searchLabel": "Tab",
+    "sets": [
+      {
+        "cancel": "VK_SUBTRACT",
+        "cancelLabel": "-",
+        "chord": "t",
+        "confirm": "VK_RETURN",
+        "confirmLabel": "Ent",
+        "digitBack": "VK_BACK",
+        "digitBackLabel": "Bks",
+        "id": "numpad",
+        "openWorkdir": "VK_DECIMAL",
+        "openWorkdirLabel": ".",
+        "search": "VK_TAB",
+        "searchLabel": "Tab",
+        "settings": "VK_DIVIDE",
+        "settingsLabel": "/",
+        "start": "VK_ADD",
+        "startLabel": "+",
+        "toKeyboard": "VK_K",
+        "toKeyboardLabel": "K",
+        "wake": "VK_ESCAPE",
+        "wakeEnabled": true,
+        "windowBg": "#FFF9C4",
+        "windowFg": "#222222"
+      },
+      {
+        "cancel": "VK_OEM_MINUS",
+        "cancelLabel": "-",
+        "chord": "k",
+        "confirm": "VK_RETURN",
+        "confirmLabel": "Ent",
+        "digitBack": "VK_BACK",
+        "digitBackLabel": "Bks",
+        "id": "keyboard",
+        "openWorkdir": "VK_OEM_PERIOD",
+        "openWorkdirLabel": ".",
+        "search": "VK_TAB",
+        "searchLabel": "Tab",
+        "settings": "VK_OEM_2",
+        "settingsLabel": "/",
+        "start": "VK_OEM_PLUS",
+        "startLabel": "=",
+        "toKeyboard": "VK_T",
+        "toKeyboardLabel": "T",
+        "wake": "VK_ESCAPE",
+        "windowBg": "#C6E0B4",
+        "windowFg": "#222222"
+      }
+    ],
+    "settings": "VK_DIVIDE",
     "settingsLabel": "/",
-    "wakeEnabled": true,
+    "start": "VK_ADD",
+    "startLabel": "+",
+    "toKeyboard": "VK_K",
+    "toKeyboardLabel": "K",
     "wake": "VK_ESCAPE",
+    "wakeEnabled": true,
     "windowBg": "#FFF9C4",
     "windowFg": "#222222"
   },
-  "instant": {
-    "0": false, "1": true, "2": false, "3": false, "4": false,
-    "5": false, "6": false, "7": false, "8": false, "9": false
+  "legend": {
+    "idle": {
+      "hidden": [
+        "openWorkdir",
+        "digitBack"
+      ],
+      "order": [
+        "start",
+        "search",
+        "cancel",
+        "settings",
+        "toKeyboard",
+        "openWorkdir",
+        "digitBack"
+      ]
+    },
+    "multi": {
+      "hidden": [
+        "start",
+        "settings",
+        "toKeyboard"
+      ],
+      "order": [
+        "openWorkdir",
+        "search",
+        "digitBack",
+        "cancel",
+        "settings",
+        "toKeyboard",
+        "start"
+      ]
+    }
   },
-  "search": {
-    "mode": "substring",
-    "caseSensitive": false
-  },
-  "ui": {
-    "locale": ""
-  },
-  "timeoutSec": 30,
-  "maxDigits": 10,
-  "feedbackMs": 500,
   "logLevel": "info",
-  "docsUrl": "https://bwlol457581.github.io/dialkey/",
-  "autostart": false,
-  "slotsFile": "slots.json",
+  "maxDigits": 10,
   "modeSwitch": {
-    "mouseButton": "x1",
-    "suppress": true,
     "chordTimeoutMs": 2000,
     "keys": {
       "0": "slots.json"
+    },
+    "mouseButton": "x1",
+    "suppress": true
+  },
+  "schemaVersion": 1,
+  "search": {
+    "caseSensitive": false,
+    "mode": "substring"
+  },
+  "slotsFile": "slots.json",
+  "timeoutSec": 30,
+  "triggers": [
+    {
+      "button": "x2",
+      "suppress": true,
+      "type": "mouse"
+    },
+    {
+      "key": "",
+      "type": "hotkey"
+    },
+    {
+      "type": "tray"
     }
+  ],
+  "ui": {
+    "locale": ""
   }
 }

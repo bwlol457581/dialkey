@@ -43,6 +43,7 @@ dialkey.exe --config D:\path\to\config
     "openWorkdir": "VK_DECIMAL",
     "digitBack": "VK_BACK",
     "settings":  "VK_DIVIDE",
+    "toKeyboard": "VK_K",
     "startLabel": "+",
     "confirmLabel": "Ent",
     "cancelLabel": "-",
@@ -50,6 +51,7 @@ dialkey.exe --config D:\path\to\config
     "openWorkdirLabel": ".",
     "digitBackLabel": "Bks",
     "settingsLabel": "/",
+    "toKeyboardLabel": "K",
     "wakeEnabled": true,
     "wake": "VK_ESCAPE",
     "windowBg": "#FFF9C4",
@@ -89,19 +91,20 @@ dialkey.exe --config D:\path\to\config
 | `schemaVersion` | `1` | Config schema version (not the app version). Missing / non-number → treat as `1` (logged). Newer than this build → refuse, do not overwrite |
 | `dialkeyVersion` | written on save | App version that last wrote the file. Informational; never used to reject a load |
 | `triggers` | mouse x2 + tray | How to open the typing window |
-| `keys.start` | `VK_ADD` | Enter multi-digit mode (`+` on the numpad). **Search:** also runs the selection (fire) |
+| `keys.start` | `VK_ADD` | Enter multi-digit mode (`+` on the numpad). Pressing it again stays in multi-digit mode and does not clear the buffer. **Search:** also runs the selection (fire) |
 | `keys.confirm` | `VK_RETURN` | Confirm a multi-digit number (launch only). **Search:** run the selection |
 | `keys.cancel` | `VK_SUBTRACT` | Close the typing window or Search. Shipped **numpad** and **keyboard** are `-` (numpad `VK_SUBTRACT`, keyboard `VK_OEM_MINUS`). Esc is not a hardcoded Search close: it closes Search only when this role is Esc |
 | `keys.search` | `VK_TAB` | Open Search (Tab; legacy JSON key `phonebook` still accepted). Older `VK_DIVIDE` / `VK_OEM_2` bindings still accept both slash keys |
 | `keys.openWorkdir` | numpad `VK_DECIMAL` / keyboard `VK_OEM_PERIOD` | In multi-digit mode with a non-empty buffer: **open the working folder only** (does not launch Path; ignored in Idle). Shipped short name **`.`** on both sets. Numpad `.` also matches NumLock-off Del. Ctrl left/right still accepted when this role is Ctrl. **Search window:** the same key also opens the folder there — tap it alone (press, then release with no other key in between) on the highlighted row or an exact-id query. A `chain:` slot opens each member folder in order. Not the same as the per-slot `openWorkdir` bool (that one still opens the folder **with** Confirm / instant launch) |
 | `keys.digitBack` | `VK_BACK` | Multi-digit: delete last digit; empty buffer returns to Idle; Idle closes the typing window. Short name **Bks**. May use NumLock-off arrows (same Capture exception as Settings) |
 | `keys.settings` | numpad `VK_DIVIDE` / keyboard `VK_OEM_2` | Close the typing window and open Settings. Empty = unbound. Missing or colliding with another role fills `/` when that VK is free. Same reserved-digit exception as digit-back so Capture can swap them |
-| `keys.wakeEnabled` | shipped numpad `true`; shipped keyboard `false`; omitted `false` | When true, swallow `keys.wake` while the typing window is open (the pad’s ON key). **Both key sets** (Settings → Keys, Advanced). Leave off for a wired pad. Existing files that omit the field stay off |
+| `keys.toKeyboard` | the other set's Switch-triggers letter | Switch to the other key set. Numpad set uses the Keyboard letter (shipped `k` / `VK_K`). Keyboard set uses the Numpad letter (shipped `t` / `VK_T`). The typing window stays open and shows that set. Settings → Keys and Settings → Triggers edit that same a–z letter. The Keys row is not Capture and not a free Display. Does not change the slot book |
+| `keys.wakeEnabled` | shipped numpad `true`; shipped keyboard `false`; omitted `false` | When true, swallow `keys.wake` while the typing window is open (the pad’s ON key). Repeated presses do not close the window. **Both key sets** (Settings → Keys, Advanced). Leave off for a wired pad. Existing files that omit the field stay off |
 | `keys.wake` | shipped both sets `VK_ESCAPE`; omitted `VK_SUBTRACT` | ON-key VK for the selected set. Empty on numpad = `VK_SUBTRACT`. Empty on keyboard = Esc. Unused while off |
 | `keys.active` | `numpad` (omitted) | Current key set (`numpad` / `keyboard`) |
 | `keys.sets` | two shipped sets (omitted) | All key sets. Each has `id`, `chord` (`t` / `k`), role keys, and optional `windowBg` / `windowFg` |
 | `keys.windowBg` / `keys.windowFg` | numpad `#FFF9C4` / `#222222`; keyboard `#C6E0B4` / `#222222` | Typing-window colours (`#RRGGBB`). Empty or broken uses that set’s shipped colour. Search and Settings stay white |
-| `keys.startLabel` / `confirmLabel` / `cancelLabel` / `searchLabel` / `openWorkdirLabel` / `digitBackLabel` / `settingsLabel` | `+` / `Ent` / `-` / `Tab` / `.` / `Bks` / `/` | Optional typing-window legend labels (max 3 characters each). Empty = VK short form. Keyboard Start display is `=` |
+| `keys.startLabel` / `confirmLabel` / `cancelLabel` / `searchLabel` / `openWorkdirLabel` / `digitBackLabel` / `settingsLabel` / `toKeyboardLabel` | `+` / `Ent` / `-` / `Tab` / `.` / `Bks` / `/` / `K` (keyboard set `T`) | Optional typing-window legend labels (max 3 characters each). Empty = VK short form. Keyboard Start display is `=`. `toKeyboardLabel` is the single uppercase letter from the other set's chord |
 | `instant` | code Default: all `false`; shipped example: `"1": true` | Digits that launch immediately when pressed alone |
 | `search.mode` | `substring` | Search match: `exact` / `prefix` / `substring` / `fuzzy` |
 | `search.caseSensitive` | `false` | Search case sensitivity |
@@ -147,9 +150,11 @@ When `instant["7"]` is `true`, pressing `7` alone launches slot `"7"` immediatel
 
 ### Laptop note
 
-The default start key is numpad `+` (`VK_ADD`). Notebooks without a numpad should
-rebind **Start** in Settings once. DialKey does not also accept the main-keyboard
-`=` / `+` key by default (layout-dependent).
+The default start key is numpad `+` (`VK_ADD`). On the typing window, **K**
+switches to the keyboard key set and **T** switches back; the window stays
+open. You can also switch with X1 then `k` / `t`, or tray → Keys. The shipped
+keyboard set uses the main `=` / `+` key (`VK_OEM_PLUS`) as Start. Capture
+is still there if that key is missing.
 
 ### Encoding
 
@@ -174,6 +179,9 @@ General → Slots file).
   letter for a key set). Timeout cancels the chord. Leader mouse, suppress,
   timeout, and the Numpad/Keyboard letters are on Settings → **Triggers** →
   **Switch triggers**.
+- On the typing window, **K** (numpad set) switches to the keyboard set and
+  **T** (keyboard set) switches back. The window stays open and shows that
+  set. This does not change the slot book. X1 and tray → Keys still work.
 - The tray **Mode** submenu and the Mode list **✔** both mark the book in
   `slotsFile` (Reload keeps them in sync)
 - Chord **`0`** is reserved for the shipped book `slots.json`. Other books fill

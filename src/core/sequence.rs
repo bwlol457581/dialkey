@@ -21,6 +21,8 @@ pub enum SequenceEvent {
     Search,
     /// Open Settings (closes the typing window).
     Settings,
+    /// Switch to the keyboard key set and close the typing window.
+    ToKeyboard,
     /// Delete last buffer digit; empty multi → Idle; Idle → close typing window.
     DigitBack,
 }
@@ -37,6 +39,8 @@ pub enum Action {
     OpenSearch,
     /// Close typing window and open Settings.
     OpenSettings,
+    /// Close typing window and switch the active key set to keyboard.
+    SwitchToKeyboard,
     /// Buffer/UI changed; redraw candidates.
     Redraw,
     /// No-op (ignored input).
@@ -81,6 +85,7 @@ impl SequenceState {
             SequenceEvent::Cancel => Action::Close,
             SequenceEvent::Search => Action::OpenSearch,
             SequenceEvent::Settings => Action::OpenSettings,
+            SequenceEvent::ToKeyboard => Action::SwitchToKeyboard,
             SequenceEvent::Start => match self.mode {
                 Mode::Idle => {
                     self.mode = Mode::MultiDigit;
@@ -88,8 +93,9 @@ impl SequenceState {
                     Action::Redraw
                 }
                 Mode::MultiDigit => {
-                    // '+' again cancels multi-digit mode
-                    Action::Close
+                    // Another start press stays in multi-digit. Cancel and
+                    // digit-back are the keys that leave this screen.
+                    Action::None
                 }
             },
             SequenceEvent::Confirm => match self.mode {
@@ -211,10 +217,13 @@ mod tests {
     }
 
     #[test]
-    fn plus_again_cancels() {
+    fn plus_again_stays_in_multi() {
         let mut s = SequenceState::new(10, HashMap::new());
         s.handle(SequenceEvent::Start);
-        assert_eq!(s.handle(SequenceEvent::Start), Action::Close);
+        s.handle(SequenceEvent::Digit(1));
+        assert_eq!(s.handle(SequenceEvent::Start), Action::None);
+        assert_eq!(s.mode(), Mode::MultiDigit);
+        assert_eq!(s.buffer(), "1");
     }
 
     #[test]

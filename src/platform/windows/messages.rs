@@ -41,6 +41,8 @@ pub const WM_DK_LAUNCH_FAILED: u32 = WM_APP + 24;
 pub const WM_DK_KEYSET_CHORD: u32 = WM_APP + 25;
 /// Tray picked a key set. wparam = index into the key-set list.
 pub const WM_DK_KEYSET_PICK: u32 = WM_APP + 26;
+/// Typing-window key asked to switch to the keyboard key set.
+pub const WM_DK_TO_KEYBOARD: u32 = WM_APP + 27;
 
 /// `COPYDATASTRUCT.dwData` for `--launch <id>` (second process → resident host).
 /// Payload is UTF-8 slot id bytes. Handled synchronously in `host_proc` via `WM_COPYDATA`.

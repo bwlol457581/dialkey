@@ -37,8 +37,8 @@ use crate::core::config::{
 };
 use crate::core::i18n::{self, keys, t, tf};
 use crate::core::keys::{
-    digit_from_vk, vks_equivalent, KeyBindings, KeyRole, ResolvedKeys, KEY_SET_KEYBOARD,
-    KEY_SET_NUMPAD, VK_SUBTRACT,
+    digit_from_vk, other_key_set_id, vks_equivalent, KeyBindings, KeyRole, ResolvedKeys,
+    KEY_SET_KEYBOARD, KEY_SET_NUMPAD, VK_SUBTRACT, VK_TAB,
 };
 use crate::core::legend::{
     dial_area_ids, dial_head_display, LegendId, LegendSettings, DIAL_AREA_ROWS, LEGEND_ITEM_COUNT,
@@ -53,7 +53,7 @@ use super::icon::load_class_icons;
 use super::launch_ipc;
 use super::launch_queue::{self, LaunchWorker};
 use super::messages::{
-    HOST_CLASS, TYPING_CLASS, WM_DK_KEY, WM_DK_KEYSET_CHORD, WM_DK_KEYSET_PICK,
+    HOST_CLASS, TYPING_CLASS, WM_DK_KEY, WM_DK_KEYSET_CHORD, WM_DK_KEYSET_PICK, WM_DK_TO_KEYBOARD,
     WM_DK_LAUNCH_FAILED, WM_DK_MODE_ARM, WM_DK_MODE_CHORD, WM_DK_MODE_PICK, WM_DK_QUIT,
     WM_DK_RELOAD, WM_DK_SEARCH, WM_DK_SEARCH_CLOSED, WM_DK_SETTINGS, WM_DK_SETTINGS_APPLIED,
     WM_DK_SETTINGS_CLOSED, WM_DK_TIMEOUT, WM_DK_TRAY, WM_DK_TRAY_DISPATCH, WM_DK_TRIGGER,
@@ -236,11 +236,12 @@ fn is_consumed_vk(vk: u32) -> bool {
     if let Ok(k) = resolved_keys_slot().lock() {
         if k.is_start(vk)
             || vk == k.confirm
-            || k.is_cancel(vk)
+            || (k.is_cancel(vk) && !k.wake_blocks_close(vk))
             || k.is_search(vk)
             || k.is_open_workdir(vk)
             || vks_equivalent(k.digit_back, vk)
             || k.is_settings(vk)
+            || k.is_to_keyboard(vk)
             || k.is_wake(vk)
         {
             return true;
@@ -258,10 +259,11 @@ fn resolved_keys_slot() -> &'static Mutex<ResolvedKeys> {
             start: 0x6B,
             confirm: 0x0D,
             cancel: 0x1B,
-            search: 0x09,
+            search: VK_TAB,
             open_workdir: crate::core::keys::VK_DECIMAL,
             digit_back: 0x08,
             settings: 0,
+            to_keyboard: 0,
             wake: VK_SUBTRACT,
             wake_enabled: false,
         })
@@ -347,6 +349,16 @@ impl TypingSession {
         Ok(session)
     }
 
+    /// Apply the key set now stored in `config` and redraw this window.
+    fn use_config_keys(&mut self, config: &AppConfig) {
+        self.bindings = config.settings.keys.clone();
+        self.keys = self.bindings.resolved();
+        if let Ok(mut slot) = resolved_keys_slot().lock() {
+            *slot = self.keys;
+        }
+        self.refresh_view(config);
+    }
+
     fn refresh_view(&mut self, config: &AppConfig) {
         let key_rows = typing_key_rows(
             &self.bindings,
@@ -382,6 +394,11 @@ impl TypingSession {
 
     fn handle_key(&mut self, vk: u16, config: &AppConfig, exe_dir: &PathBuf) -> bool {
         // returns true if session should close
+        // ON never dismisses, including repeated presses and the acceptance line.
+        if self.keys.wake_blocks_close(vk) {
+            return false;
+        }
+
         if self.feedback_pending {
             // During acceptance display, only Cancel closes early.
             return self.keys.is_cancel(vk);
@@ -399,6 +416,8 @@ impl TypingSession {
             SequenceEvent::Confirm
         } else if self.keys.is_settings(vk) {
             SequenceEvent::Settings
+        } else if self.keys.is_to_keyboard(vk) {
+            SequenceEvent::ToKeyboard
         } else if self.keys.is_open_workdir(vk) {
             SequenceEvent::OpenWorkdir
         } else if vks_equivalent(self.keys.digit_back, vk) {
@@ -443,6 +462,13 @@ impl TypingSession {
                     let _ = PostMessageW(host, WM_DK_SETTINGS, WPARAM(0), LPARAM(0));
                 }
                 true
+            }
+            Action::SwitchToKeyboard => {
+                let host = HWND(HOST_HWND.load(Ordering::SeqCst) as *mut _);
+                unsafe {
+                    let _ = PostMessageW(host, WM_DK_TO_KEYBOARD, WPARAM(0), LPARAM(0));
+                }
+                false
             }
             Action::Launch { id } => self.run_slot_launch(&id, config, exe_dir, false),
             Action::OpenWorkdirOnly { id } => self.run_slot_launch(&id, config, exe_dir, true),
@@ -768,6 +794,9 @@ fn typing_key_rows(bindings: &KeyBindings, legend: &LegendSettings, mode: Mode) 
         title: "--------".into(),
     }];
     for id in legend.visible(mode) {
+        if bindings.vk_name(id.key_role()).trim().is_empty() {
+            continue;
+        }
         rows.push(legend_option_row(bindings, id));
     }
     while rows.len() < 1 + LEGEND_ITEM_COUNT {
@@ -787,6 +816,13 @@ fn legend_option_row(bindings: &KeyBindings, id: LegendId) -> TypingRow {
         LegendId::DigitBack => t(keys::APP_TYPING_LEGEND_DIGIT_BACK),
         LegendId::Cancel => t(keys::APP_TYPING_LEGEND_ESC),
         LegendId::Settings => t(keys::APP_TYPING_LEGEND_SETTINGS),
+        LegendId::ToKeyboard => {
+            if bindings.active == KEY_SET_KEYBOARD {
+                t(keys::KEY_SET_NUMPAD)
+            } else {
+                t(keys::KEY_SET_KEYBOARD)
+            }
+        }
     };
     TypingRow {
         key: bindings.display_label(id.key_role()),
@@ -1292,6 +1328,24 @@ pub fn run(mut config: AppConfig) -> anyhow::Result<()> {
                                 &mut hotkey,
                                 &autostart,
                             );
+                        }
+                        continue;
+                    }
+                    WM_DK_TO_KEYBOARD => {
+                        if settings::is_open() {
+                            continue;
+                        }
+                        let target = other_key_set_id(&config.settings.keys.active).to_string();
+                        switch_to_key_set(
+                            &mut config,
+                            &target,
+                            &exe,
+                            &mut tray,
+                            &mut hotkey,
+                            &autostart,
+                        );
+                        if let Some(session) = session.as_mut() {
+                            session.use_config_keys(&config);
                         }
                         continue;
                     }

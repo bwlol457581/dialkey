@@ -62,8 +62,9 @@ use crate::core::drop_path::{
 };
 use crate::core::i18n::{self, keys, t, tf};
 use crate::core::keys::{
-    apply_captured_vk, apply_captured_wake, validate_display_labels, validate_key_bindings,
-    validate_key_set_chords, KeyBindingError, KeyRole, KEY_SET_KEYBOARD, KEY_SET_NUMPAD,
+    apply_captured_vk, apply_captured_wake, other_key_set_id,
+    validate_display_labels, validate_key_bindings, validate_key_set_chords, KeyBindingError,
+    KeyRole, KEY_SET_KEYBOARD, KEY_SET_NUMPAD,
 };
 use crate::core::launch::is_http_url;
 use crate::core::legend::{LegendId, LEGEND_ITEM_COUNT};
@@ -136,6 +137,7 @@ const IDC_SEARCH_LABEL: isize = 1232;
 const IDC_OPEN_WORKDIR_LABEL: isize = 1233;
 const IDC_DIGIT_BACK_LABEL: isize = 1234;
 const IDC_SETTINGS_LABEL: isize = 1235;
+const IDC_OTHER_SET_LETTER: isize = 1238;
 const IDC_WINDOW_BG: isize = 1236;
 const IDC_WINDOW_FG: isize = 1237;
 const IDC_MOUSE_BTN: isize = 1220;
@@ -433,6 +435,10 @@ struct SettingsState {
     lbl_settings: HWND,
     btn_cap_settings: HWND,
     lbl_settings_cap: HWND,
+    /// Destination set's Switch-triggers letter (a–z). Not a Display edit.
+    combo_other_set_letter: HWND,
+    lbl_to_keyboard: HWND,
+    lbl_to_keyboard_cap: HWND,
     lbl_window_bg: HWND,
     edit_window_bg: HWND,
     lbl_window_fg: HWND,
@@ -710,6 +716,9 @@ pub fn open_at_page(host: HWND, config: &AppConfig, page: u8) -> anyhow::Result<
             lbl_settings: HWND::default(),
             btn_cap_settings: HWND::default(),
             lbl_settings_cap: HWND::default(),
+            combo_other_set_letter: HWND::default(),
+            lbl_to_keyboard: HWND::default(),
+            lbl_to_keyboard_cap: HWND::default(),
             lbl_window_bg: HWND::default(),
             edit_window_bg: HWND::default(),
             lbl_window_fg: HWND::default(),
@@ -1769,6 +1778,7 @@ unsafe fn layout_keys_page(hwnd: HWND, s: &SettingsState) -> i32 {
         window_text(s.lbl_open_workdir_cap),
         window_text(s.lbl_digit_back_cap),
         window_text(s.lbl_settings_cap),
+        window_text(s.lbl_to_keyboard_cap),
         if show_wake {
             window_text(s.lbl_wake_cap)
         } else {
@@ -1887,6 +1897,22 @@ unsafe fn layout_keys_page(hwnd: HWND, s: &SettingsState) -> i32 {
         s.edit_settings_label,
         s.btn_cap_settings,
     );
+    // Other-set row: caption | read-only VK | a–z. No Display, no Capture.
+    move_child_clean(s.lbl_to_keyboard_cap, stack_x, ky, cap_w, label_h);
+    {
+        let rest_x = stack_x + cap_w + KEYS_COL_GAP;
+        let rest_w = (stack_inner_w - cap_w - KEYS_COL_GAP).max(160);
+        let value_w = (rest_w - keys_cap_w - disp_w - KEYS_COL_GAP * 2).max(80);
+        move_child_clean(s.lbl_to_keyboard, rest_x, ky, value_w, label_h);
+        move_child_clean(
+            s.combo_other_set_letter,
+            rest_x + value_w + KEYS_COL_GAP,
+            ky,
+            disp_w,
+            200,
+        );
+    }
+    ky += label_h.max(row_ctl_h) + FIELD_BLOCK_GAP;
     apply_wake_control_visibility(s);
     if show_wake {
         let wake_txt = window_text(s.chk_wake);
@@ -2875,6 +2901,7 @@ unsafe fn create_children(parent: HWND, state_ptr: *mut SettingsState) -> anyhow
     let txt_open_workdir_key = t(keys::SETTINGS_OPEN_WORKDIR_KEY);
     let txt_digit_back = t(keys::SETTINGS_DIGIT_BACK);
     let txt_settings_key = t(keys::SETTINGS_SETTINGS_KEY);
+    let txt_to_keyboard = t(keys::SETTINGS_TO_KEYBOARD);
     let txt_window_bg = t(keys::SETTINGS_WINDOW_BG);
     let txt_window_fg = t(keys::SETTINGS_WINDOW_FG);
     let txt_wake = t(keys::SETTINGS_WAKE_KEY);
@@ -3174,6 +3201,7 @@ unsafe fn create_children(parent: HWND, state_ptr: *mut SettingsState) -> anyhow
             &txt_open_workdir_key,
             &txt_digit_back,
             &txt_settings_key,
+            &txt_to_keyboard,
             &txt_wake_vk,
         ],
     );
@@ -3293,6 +3321,28 @@ unsafe fn create_children(parent: HWND, state_ptr: *mut SettingsState) -> anyhow
         IDC_SETTINGS_LABEL,
         IDC_CAP_SETTINGS,
     )?;
+    let lbl_to_keyboard_cap = create_static(keys, &txt_to_keyboard, stack_x, ky, cap_w, LABEL_H)?;
+    {
+        let rest_x = stack_x + cap_w + KEYS_COL_GAP;
+        let rest_w = (stack_inner_w - cap_w - KEYS_COL_GAP).max(160);
+        let value_w = (rest_w - keys_cap_w - disp_w - KEYS_COL_GAP * 2).max(80);
+        s.lbl_to_keyboard = create_static(keys, "", rest_x, ky, value_w, LABEL_H)?;
+        s.combo_other_set_letter = CreateWindowExW(
+            WINDOW_EX_STYLE::default(),
+            w!("COMBOBOX"),
+            w!(""),
+            WINDOW_STYLE(WS_CHILD.0 | WS_VISIBLE.0 | WS_TABSTOP.0 | CBS_DROPDOWNLIST as u32),
+            rest_x + value_w + KEYS_COL_GAP,
+            ky,
+            disp_w,
+            200,
+            keys,
+            windows::Win32::UI::WindowsAndMessaging::HMENU(IDC_OTHER_SET_LETTER as _),
+            instance,
+            None,
+        )?;
+    }
+    ky += LABEL_H.max(row_ctl_h) + FIELD_BLOCK_GAP;
     let wake_h = if measure_text_width(parent, &txt_wake) + 28 > stack_inner_w {
         36
     } else {
@@ -3334,6 +3384,7 @@ unsafe fn create_children(parent: HWND, state_ptr: *mut SettingsState) -> anyhow
     s.lbl_open_workdir_cap = lbl_open_workdir_cap;
     s.lbl_digit_back_cap = lbl_digit_back_cap;
     s.lbl_settings_cap = lbl_settings_cap;
+    s.lbl_to_keyboard_cap = lbl_to_keyboard_cap;
     ky += FIELD_BLOCK_GAP;
     let reset_keys_w = fitted_button_width(parent, &txt_reset);
     s.btn_reset_keys = create_btn(
@@ -3519,6 +3570,9 @@ unsafe fn create_children(parent: HWND, state_ptr: *mut SettingsState) -> anyhow
         s.lbl_settings,
         s.edit_settings_label,
         s.btn_cap_settings,
+        s.lbl_to_keyboard_cap,
+        s.lbl_to_keyboard,
+        s.combo_other_set_letter,
         s.lbl_window_bg,
         s.edit_window_bg,
         s.lbl_window_fg,
@@ -4673,6 +4727,7 @@ fn legend_item_label(id: LegendId) -> String {
         LegendId::DigitBack => t(keys::APP_TYPING_LEGEND_DIGIT_BACK),
         LegendId::Cancel => t(keys::APP_TYPING_LEGEND_ESC),
         LegendId::Settings => t(keys::APP_TYPING_LEGEND_SETTINGS),
+        LegendId::ToKeyboard => t(keys::APP_TYPING_LEGEND_KEYBOARD),
     }
 }
 
@@ -5882,12 +5937,19 @@ unsafe fn fill_key_set_controls(state_ptr: *mut SettingsState) {
         s.combo_key_chord_kb,
         s.draft_settings.keys.chord_for_id(KEY_SET_KEYBOARD),
     );
+    fill_az_combo(
+        s.combo_other_set_letter,
+        s.draft_settings
+            .keys
+            .chord_for_id(other_key_set_id(&s.draft_settings.keys.active)),
+    );
 
     let wake_on = s.draft_settings.keys.wake_configurable() && s.draft_settings.keys.wake_enabled;
     set_check(s.chk_wake, wake_on);
     set_text(s.lbl_wake, &s.draft_settings.keys.wake);
     apply_wake_control_visibility(s);
     s.suppress_key_set_change = false;
+    update_key_labels(state_ptr);
 }
 
 unsafe fn on_key_set_sel(state_ptr: *mut SettingsState) {
@@ -5913,6 +5975,7 @@ unsafe fn on_key_set_sel(state_ptr: *mut SettingsState) {
     if !s.draft_settings.keys.activate(&id) {
         return;
     }
+    s.draft_settings.keys.sync_switch_keys_from_chords();
     if s.capturing == Some(CaptureTarget::Wake) && !s.draft_settings.keys.wake_configurable() {
         stop_capture(state_ptr);
     }
@@ -5924,9 +5987,23 @@ unsafe fn on_key_set_sel(state_ptr: *mut SettingsState) {
     }
 }
 
-unsafe fn on_mode_letter_sel(state_ptr: *mut SettingsState, set_id: &str, combo: HWND) {
+unsafe fn refresh_chord_combos(state_ptr: *mut SettingsState) {
     let s = &mut *state_ptr;
-    if s.suppress_key_set_change {
+    let numpad = s.draft_settings.keys.chord_for_id(KEY_SET_NUMPAD);
+    let keyboard = s.draft_settings.keys.chord_for_id(KEY_SET_KEYBOARD);
+    let other = s
+        .draft_settings
+        .keys
+        .chord_for_id(other_key_set_id(&s.draft_settings.keys.active));
+    s.suppress_key_set_change = true;
+    fill_az_combo(s.combo_key_chord, numpad);
+    fill_az_combo(s.combo_key_chord_kb, keyboard);
+    fill_az_combo(s.combo_other_set_letter, other);
+    s.suppress_key_set_change = false;
+}
+
+unsafe fn on_mode_letter_sel(state_ptr: *mut SettingsState, set_id: &str, combo: HWND) {
+    if (*state_ptr).suppress_key_set_change {
         return;
     }
     let idx = SendMessageW(combo, CB_GETCURSEL, WPARAM(0), LPARAM(0)).0;
@@ -5934,7 +6011,11 @@ unsafe fn on_mode_letter_sel(state_ptr: *mut SettingsState, set_id: &str, combo:
         return;
     }
     let letter = (b'a' + idx as u8) as char;
-    if let Err(e) = s.draft_settings.keys.set_chord_for_id(set_id, letter) {
+    if let Err(e) = (*state_ptr)
+        .draft_settings
+        .keys
+        .set_chord_for_id(set_id, letter)
+    {
         let hwnd = HWND(SETTINGS_HWND.load(Ordering::SeqCst) as *mut _);
         msgbox(
             hwnd,
@@ -5943,6 +6024,13 @@ unsafe fn on_mode_letter_sel(state_ptr: *mut SettingsState, set_id: &str, combo:
             MB_OK | MB_ICONWARNING,
         );
         fill_key_set_controls(state_ptr);
+    } else {
+        (*state_ptr)
+            .draft_settings
+            .keys
+            .sync_switch_keys_from_chords();
+        refresh_chord_combos(state_ptr);
+        update_key_labels(state_ptr);
     }
 }
 
@@ -5991,6 +6079,13 @@ unsafe fn update_key_labels(state_ptr: *mut SettingsState) {
     set_text(s.edit_digit_back_label, &k.digit_back_label);
     set_text(s.lbl_settings, &k.settings);
     set_text(s.edit_settings_label, &k.settings_label);
+    set_text(s.lbl_to_keyboard, &k.to_keyboard);
+    let other_set = if k.active == KEY_SET_KEYBOARD {
+        t(keys::KEY_SET_NUMPAD)
+    } else {
+        t(keys::KEY_SET_KEYBOARD)
+    };
+    set_text(s.lbl_to_keyboard_cap, &other_set);
     set_text(s.edit_window_bg, &k.window_bg);
     set_text(s.edit_window_fg, &k.window_fg);
     set_text(s.lbl_wake, &k.wake);
@@ -6268,7 +6363,10 @@ unsafe fn collect_ui_into_draft(state_ptr: *mut SettingsState) -> Result<(), Str
         let s = &mut *state_ptr;
         collect_live_key_fields(s);
         s.draft_settings.keys.sync_live_into_sets();
+        // The other-set key is the Switch-triggers letter, not a separate binding.
+        s.draft_settings.keys.sync_switch_keys_from_chords();
     }
+    update_key_labels(state_ptr);
     legend_sync_hidden_from_checks(state_ptr, true);
     legend_sync_hidden_from_checks(state_ptr, false);
     let s = &mut *state_ptr;
@@ -6602,6 +6700,8 @@ unsafe fn key_role_controls(s: &SettingsState, role: KeyRole) -> (HWND, HWND, HW
             s.btn_cap_digit_back,
         ),
         KeyRole::Settings => (s.lbl_settings, s.edit_settings_label, s.btn_cap_settings),
+        // Not a Capture row. Callers skip this role.
+        KeyRole::ToKeyboard => (s.lbl_to_keyboard, HWND::default(), HWND::default()),
     }
 }
 
@@ -6617,6 +6717,9 @@ unsafe fn refresh_capture_buttons(state_ptr: *mut SettingsState) {
     let cap = t(keys::SETTINGS_CAPTURE);
     let cancel = t(keys::SETTINGS_CANCEL);
     for role in KeyRole::ALL {
+        if role == KeyRole::ToKeyboard {
+            continue;
+        }
         let (_, _, btn) = key_role_controls(s, role);
         let on = matches!(s.capturing, Some(CaptureTarget::Key(r)) if r == role);
         set_text(btn, if on { &cancel } else { &cap });
@@ -7081,6 +7184,11 @@ unsafe extern "system" fn settings_proc(
             if id == IDC_MODE_LETTER_KEYBOARD && notify == CBN_SELCHANGE {
                 let combo = (*state_ptr).combo_key_chord_kb;
                 on_mode_letter_sel(state_ptr, KEY_SET_KEYBOARD, combo);
+            }
+            if id == IDC_OTHER_SET_LETTER && notify == CBN_SELCHANGE {
+                let dest = other_key_set_id(&(*state_ptr).draft_settings.keys.active);
+                let combo = (*state_ptr).combo_other_set_letter;
+                on_mode_letter_sel(state_ptr, dest, combo);
             }
             if id == IDC_SLOT_ID && notify == EN_CHANGE {
                 update_slots_edit_enabled(state_ptr);

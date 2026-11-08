@@ -8,7 +8,7 @@ use crate::core::keys::KeyRole;
 use crate::core::sequence::Mode;
 
 /// All legend items (fixed set). Window always reserves this many option rows.
-pub const LEGEND_ITEM_COUNT: usize = 6;
+pub const LEGEND_ITEM_COUNT: usize = 7;
 
 /// Next-digit decade (`{prefix}0`…`{prefix}9`).
 pub const DIAL_ROWS: usize = 10;
@@ -24,6 +24,7 @@ pub enum LegendId {
     DigitBack,
     Cancel,
     Settings,
+    ToKeyboard,
 }
 
 impl LegendId {
@@ -34,6 +35,7 @@ impl LegendId {
         LegendId::DigitBack,
         LegendId::Cancel,
         LegendId::Settings,
+        LegendId::ToKeyboard,
     ];
 
     pub fn as_str(self) -> &'static str {
@@ -44,6 +46,7 @@ impl LegendId {
             LegendId::DigitBack => "digitBack",
             LegendId::Cancel => "cancel",
             LegendId::Settings => "settings",
+            LegendId::ToKeyboard => "toKeyboard",
         }
     }
 
@@ -55,6 +58,7 @@ impl LegendId {
             "digitBack" | "digit_back" => Some(LegendId::DigitBack),
             "cancel" => Some(LegendId::Cancel),
             "settings" => Some(LegendId::Settings),
+            "toKeyboard" | "to_keyboard" => Some(LegendId::ToKeyboard),
             _ => None,
         }
     }
@@ -67,6 +71,7 @@ impl LegendId {
             LegendId::DigitBack => KeyRole::DigitBack,
             LegendId::Cancel => KeyRole::Cancel,
             LegendId::Settings => KeyRole::Settings,
+            LegendId::ToKeyboard => KeyRole::ToKeyboard,
         }
     }
 }
@@ -121,6 +126,7 @@ fn default_idle_order() -> Vec<String> {
         "search".into(),
         "cancel".into(),
         "settings".into(),
+        "toKeyboard".into(),
         "openWorkdir".into(),
         "digitBack".into(),
     ]
@@ -137,12 +143,13 @@ fn default_multi_order() -> Vec<String> {
         "digitBack".into(),
         "cancel".into(),
         "settings".into(),
+        "toKeyboard".into(),
         "start".into(),
     ]
 }
 
 fn default_multi_hidden() -> Vec<String> {
-    vec!["start".into(), "settings".into()]
+    vec!["start".into(), "settings".into(), "toKeyboard".into()]
 }
 
 impl LegendSettings {
@@ -305,7 +312,8 @@ mod tests {
                 LegendId::Start,
                 LegendId::Search,
                 LegendId::Cancel,
-                LegendId::Settings
+                LegendId::Settings,
+                LegendId::ToKeyboard
             ]
         );
     }

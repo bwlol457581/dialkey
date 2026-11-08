@@ -73,10 +73,9 @@ You are still in Idle if the first line is blank and the legend still says
 Trigger. When `+` is accepted the first line shows `+` (or your Start display)
 and the legend switches to Open / Back. If it does not, the key never reached
 Windows — a sleeping wireless pad, or a pad that does not send `VK_ADD`.
-Do not press `+` a second time to “retry”: if the first one arrived, the
-second closes the window. On some numpads, waking from sleep takes a
-moment — watch the typing window and make sure the key you pressed
-actually registered. See
+Pressing `+` again stays in multi-digit mode and does not close. On some
+numpads, waking from sleep takes a moment — watch the typing window and
+make sure the key you pressed actually registered. See
 [Wireless numpad misses the first key](#wireless-numpad-misses-the-first-key).
 Or Capture **Start** if this pad does not send `VK_ADD`.
 
@@ -122,8 +121,8 @@ keyboard set already uses `-`).
 On some numpads, waking from sleep takes a moment. Watch the typing
 window and make sure the keys you pressed actually registered.
 
-Do not press `+` a second time to “retry”: if one arrived, the next
-closes the window.
+Pressing ON again does not close the window. Pressing `+` again stays in
+multi-digit mode and does not close either.
 
 Avoid waking with `+`, a digit, or NumLock — those are DialKey keys or,
 on the TK-029S, the 2.4G / Bluetooth switch.
@@ -141,10 +140,16 @@ path. Help does not cover this.
 
 ### I am on a laptop without a numpad `+` key
 
-Turn on **Advanced**, then switch the **Key set** to **Keyboard**
-(Settings → Keys, tray → Keys, or X1 then `k`). The shipped keyboard set
-uses the main `+` key (`VK_OEM_PLUS`). Capture is still there if that
-key is missing. Switch back with X1 then `t`, or tray → Keys → Numpad.
+If the yellow typing window is already open, press **K**. It switches to the
+keyboard key set and the same window turns green, with that set’s keys.
+**T** switches back to the numpad set. The window does not close. Those
+letters are the Switch triggers (Settings → Triggers: Keyboard `k`, Numpad
+`t`). Changing a letter there changes the key. |
+
+You can also switch before opening it: tray → Keys, or X1 then `k` (back
+with X1 then `t`). Settings → Keys is the same control (turn on **Advanced**
+to see the key-set combo). The shipped keyboard set uses the main `+` key
+(`VK_OEM_PLUS`). Capture is still there if that key is missing.
 DialKey is built around an external numpad; laptop use is a fallback.
 
 The keyboard set’s typing window is **green** (`#C6E0B4`). The numpad
